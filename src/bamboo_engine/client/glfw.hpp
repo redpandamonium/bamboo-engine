@@ -21,6 +21,7 @@
 #define BAMBOOENGINE_GLFW_HPP
 
 #include "../util/version.hpp"
+#include "../util/macros.hpp"
 
 namespace bbge {
 
