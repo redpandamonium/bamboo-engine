@@ -61,10 +61,10 @@ namespace bbge {
         : m_application_info(), m_instance() {
 
         // app info
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "hicpp-signed-bitwise"
+        #pragma clang diagnostic push
+        #pragma ide diagnostic ignored "hicpp-signed-bitwise"
         auto api_version = VK_API_VERSION_1_0;
-#pragma clang diagnostic pop
+        #pragma clang diagnostic pop
 
         m_application_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
         m_application_info.apiVersion = api_version;
@@ -92,6 +92,7 @@ namespace bbge {
         }
 
         // layers
+        print_available_layers();
         std::vector<const char*> layers;
         #ifndef NDEBUG
             SPDLOG_DEBUG("Vulkan validations layers are enabled.");
@@ -137,45 +138,31 @@ namespace bbge {
     }
 
     void vulkan_instance::print_available_extensions() {
-
-        uint32_t count = 0;
-        auto res = vkEnumerateInstanceExtensionProperties(nullptr, &count, nullptr);
-        if (res != VkResult::VK_SUCCESS) {
-            SPDLOG_WARN("Failed to query Vulkan instance extension properties ({}), but this wasn't in a critical context.", vulkan_utils::to_string(res));
-            return;
-        }
-        std::vector<VkExtensionProperties> props(count);
-        res = vkEnumerateInstanceExtensionProperties(nullptr, &count, props.data());
-        if (res != VkResult::VK_SUCCESS) {
-            SPDLOG_WARN("Failed to query Vulkan instance extension properties ({}), but this wasn't in a critical context.", vulkan_utils::to_string(res))  ;
-            return;
-        }
-
         SPDLOG_TRACE("Available Vulkan instance extensions: ");
-        for (const auto& prop : props) {
+        for (const auto& prop : vulkan_utils::query_available_instance_extensions()) {
             SPDLOG_TRACE("+ {} at version {}.", prop.extensionName, prop.specVersion);
         }
     }
 
     std::vector<const char*> vulkan_instance::get_optional_extensions() {
-        return { };
+
+        std::vector<const char*> result;
+        auto available = vulkan_utils::query_available_instance_extensions();
+
+        for (const char* requested : optional_extensions) {
+            auto it = std::find_if(available.begin(), available.end(),
+                [requested](const VkExtensionProperties& props) { return std::strcmp(props.extensionName, requested) == 0; });
+            if (it != available.end()) {
+                result.push_back(requested);
+            }
+        }
+
+        return result;
     }
 
     std::vector<const char*> vulkan_instance::query_available_validation_layers() {
 
-        uint32_t count = 0;
-        auto res = vkEnumerateInstanceLayerProperties(&count, nullptr);
-        if (res != VkResult::VK_SUCCESS) {
-            SPDLOG_WARN("Failed to query the available validation layers ({}). Not using any.", vulkan_utils::to_string(res));
-            return { };
-        }
-        std::vector<VkLayerProperties> props(count);
-        res = vkEnumerateInstanceLayerProperties(&count, props.data());
-        if (res != VkResult::VK_SUCCESS) {
-            SPDLOG_WARN("Failed to query the available validation layers ({}). Not using any.", vulkan_utils::to_string(res));
-            return { };
-        }
-
+        auto props = vulkan_utils::query_available_layers();
         std::vector<const char*> avail;
 
         for (const char* requested_layer : validation_layers) {
@@ -184,7 +171,6 @@ namespace bbge {
             if (it == props.end()) continue; // not available
 
             avail.push_back(requested_layer);
-            SPDLOG_DEBUG("Using Vulkan validation layer {} at version {}.", it->layerName, it->specVersion);
         }
 
         return avail;
@@ -199,16 +185,7 @@ namespace bbge {
         std::copy(exts, exts + num_exts, result.begin());
 
         // Check if they are available and throw if not
-        uint32_t num_avail = 0;
-        auto res = vkEnumerateInstanceExtensionProperties(nullptr, &num_avail, nullptr);
-        if (res != VkResult::VK_SUCCESS) {
-            throw vulkan_error("Failed to query instance extensions", res);
-        }
-        std::vector<VkExtensionProperties> available(num_avail);
-        res = vkEnumerateInstanceExtensionProperties(nullptr, &num_avail, available.data());
-        if (res != VkResult::VK_SUCCESS) {
-            throw vulkan_error("Failed to query instance extensions", res);
-        }
+        auto available = vulkan_utils::query_available_instance_extensions();
 
         for (const char* ext : result) {
             auto it = std::find_if(available.begin(), available.end(),
@@ -232,15 +209,19 @@ namespace bbge {
 
         switch (message_severity) {
             case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
-                SPDLOG_TRACE("[{}]: {}.", type, callback_data->pMessage);
+                SPDLOG_TRACE("[VkVal] [{}]: {}.", type, callback_data->pMessage);
+                break;
             case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
-                SPDLOG_DEBUG("[{}]: {}.", type, callback_data->pMessage);
+                SPDLOG_DEBUG("[VkVal] [{}]: {}.", type, callback_data->pMessage);
+                break;
             case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
-                SPDLOG_WARN("[{}]: {}.", type, callback_data->pMessage);
+                SPDLOG_WARN("[VkVal] [{}]: {}.", type, callback_data->pMessage);
+                break;
             case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
-                SPDLOG_ERROR("[{}]: {}.", type, callback_data->pMessage);
+                SPDLOG_ERROR("[VkVal] [{}]: {}.", type, callback_data->pMessage);
+                break;
             default:
-                SPDLOG_DEBUG("[{}]: {}.", type, callback_data->pMessage);
+                SPDLOG_DEBUG("[VkVal] [{}]: {}.", type, callback_data->pMessage);
         }
 
         return VK_FALSE;
@@ -248,6 +229,13 @@ namespace bbge {
 
     VkInstance vulkan_instance::get_handle() const noexcept {
         return m_instance;
+    }
+
+    void vulkan_instance::print_available_layers() {
+        SPDLOG_TRACE("Available Vulkan instance layers:");
+        for (const auto layer : vulkan_utils::query_available_layers()) {
+            SPDLOG_TRACE("+ {} at version {}.", layer.layerName, layer.specVersion);
+        }
     }
 
     int vulkan_utils::make_version(const bbge::version& v) {
@@ -324,6 +312,40 @@ namespace bbge {
         debug_create_info.pfnUserCallback = &vulkan_instance::debug_callback;
 
         return debug_create_info;
+    }
+
+    std::vector<VkExtensionProperties> vulkan_utils::query_available_instance_extensions() {
+
+        uint32_t num_avail = 0;
+        auto res = vkEnumerateInstanceExtensionProperties(nullptr, &num_avail, nullptr);
+        if (res != VkResult::VK_SUCCESS) {
+            SPDLOG_WARN("Failed to query vulkan instance extensions (err={}).", vulkan_utils::to_string(res));
+        }
+        std::vector<VkExtensionProperties> available(num_avail);
+        res = vkEnumerateInstanceExtensionProperties(nullptr, &num_avail, available.data());
+        if (res != VkResult::VK_SUCCESS) {
+            SPDLOG_WARN("Failed to query vulkan instance extensions (err={}).", vulkan_utils::to_string(res));
+        }
+
+        return available;
+    }
+
+    std::vector<VkLayerProperties> vulkan_utils::query_available_layers() {
+
+        uint32_t count = 0;
+        auto res = vkEnumerateInstanceLayerProperties(&count, nullptr);
+        if (res != VkResult::VK_SUCCESS) {
+            SPDLOG_WARN("Failed to query the available validation layers ({}). Not using any.", vulkan_utils::to_string(res));
+            return { };
+        }
+        std::vector<VkLayerProperties> props(count);
+        res = vkEnumerateInstanceLayerProperties(&count, props.data());
+        if (res != VkResult::VK_SUCCESS) {
+            SPDLOG_WARN("Failed to query the available validation layers ({}). Not using any.", vulkan_utils::to_string(res));
+            return { };
+        }
+
+        return props;
     }
 
     vulkan_error::vulkan_error(const std::string& msg, VkResult res)

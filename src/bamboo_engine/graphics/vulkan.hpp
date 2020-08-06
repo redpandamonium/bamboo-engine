@@ -37,6 +37,8 @@ namespace bbge {
         static const char* convert_severity(VkDebugUtilsMessageSeverityFlagBitsEXT sev);
         static const char* convert_type(VkDebugUtilsMessageTypeFlagsEXT typ);
         static VkDebugUtilsMessengerCreateInfoEXT make_debug_messenger_all_messages() noexcept;
+        [[nodiscard]] static std::vector<VkExtensionProperties> query_available_instance_extensions();
+        [[nodiscard]] static std::vector<VkLayerProperties> query_available_layers();
 
     private:
 
@@ -113,7 +115,13 @@ namespace bbge {
         static constexpr const version engine_version { BAMBOOENGINE_VERSION_MAJOR, BAMBOOENGINE_VERSION_MINOR };
         static constexpr const char* validation_layers[] = {
             "VK_LAYER_KHRONOS_validation",
-
+            "VK_LAYER_LUNARG_standard_validation",
+            "VK_LAYER_LUNARG_core_validation",
+            "VK_LAYER_LUNARG_parameter_validation",
+            "VK_LAYER_LUNARG_object_tracker"
+        };
+        static constexpr const char* optional_extensions[] = {
+            VK_EXT_DEBUG_UTILS_EXTENSION_NAME
         };
 
         VkApplicationInfo m_application_info;
@@ -125,6 +133,7 @@ namespace bbge {
         [[nodiscard]] static std::vector<const char*> get_optional_extensions();
 
         // layers
+        static void print_available_layers();
         [[nodiscard]] static std::vector<const char*> query_available_validation_layers();
     };
 
