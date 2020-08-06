@@ -57,10 +57,10 @@ int main(int argc, char** argv) {
         std::this_thread::sleep_for(std::chrono::seconds(5));
     }
     catch (const std::exception& ex) {
-        SPDLOG_ERROR("EXCEPTION: {}", ex.what());
+        SPDLOG_CRITICAL("EXCEPTION: {}", ex.what());
     }
     catch (...) {
-        SPDLOG_ERROR("Unknown exception thrown in client. Please inherit from std::exception.");
+        SPDLOG_CRITICAL("Unknown exception thrown in client. Please inherit from std::exception.");
     }
 
     return 0;
