@@ -30,13 +30,25 @@ namespace bbge {
          * @brief Construct a successful result
          * @param o Ok result
          */
-        explicit result(ok_type&& o);
+        result(ok_type&& o);
 
         /**
          * @brief Construct an error
          * @param e Error result
          */
-        explicit result(err_type&& e);
+        result(err_type&& e);
+
+        /**
+         * @brief Construct a successful result
+         * @param o Ok result
+         */
+        result(const ok_type& o);
+
+        /**
+         * @brief Construct an error
+         * @param e Error result
+         */
+        result(const err_type& e);
 
         /**
          * @brief Construct a successful result in place
@@ -189,6 +201,16 @@ namespace bbge {
     template <typename... Args>
     result<Result, Error>::result(std::in_place_type_t<ok_type> t, Args&& ... args)
       : m_variant(t, std::forward<Args>(args)...) {
+
+    }
+
+    template <typename Result, typename Error>
+    result<Result, Error>::result(const ok_type& o) : m_variant(o) {
+
+    }
+
+    template <typename Result, typename Error>
+    result<Result, Error>::result(const err_type& e) : m_variant(e) {
 
     }
 
