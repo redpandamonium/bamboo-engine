@@ -34,7 +34,7 @@ add_library(bamboo-engine src/bamboo_engine/client/window.cpp src/bamboo_engine/
         src/bamboo_engine/client/window.cpp src/bamboo_engine/client/window.hpp
         src/bamboo_engine/util/logging.cpp src/bamboo_engine/util/logging.hpp
         src/bamboo_engine/graphics/vulkan.cpp src/bamboo_engine/graphics/vulkan.hpp
-        src/bamboo_engine/client/glfw.cpp src/bamboo_engine/util/version.cpp src/bamboo_engine/util/macros.hpp)
+        src/bamboo_engine/client/glfw.cpp src/bamboo_engine/util/version.cpp src/bamboo_engine/util/macros.hpp src/bamboo_engine/util/result.hpp)
 target_include_directories(bamboo-engine INTERFACE src PUBLIC "${PROJECT_BINARY_DIR}")
 target_link_libraries(bamboo-engine PUBLIC
         CONAN_PKG::spdlog CONAN_PKG::nlohmann_json CONAN_PKG::gsl-lite CONAN_PKG::boost CONAN_PKG::tsl-robin-map
