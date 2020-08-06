@@ -52,6 +52,7 @@ int main(int argc, char** argv) {
             "Bamboo Engine"s, window::position_center, glm::ivec2 { 1024, 720 }
         );
         vulkan_instance vk_instance("Test", version { 0, 1, 1 });
+        vulkan_debug_messenger vk_debug(vk_instance.get_handle());
 
         std::this_thread::sleep_for(std::chrono::seconds(5));
     }

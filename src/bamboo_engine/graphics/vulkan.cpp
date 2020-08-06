@@ -55,7 +55,7 @@ namespace bbge {
         { VK_ERROR_NOT_PERMITTED_EXT, "VK_ERROR_NOT_PERMITTED_EXT" }
     };
 
-    const std::string vulkan_utils::invalid_name = "UNKNOWN RESULT TYPE";
+    const std::string_view vulkan_utils::invalid_name = "UNKNOWN RESULT TYPE";
 
     vulkan_instance::vulkan_instance(const std::string& app_name, version app_version)
         : m_application_info(), m_instance() {
@@ -93,10 +93,10 @@ namespace bbge {
 
         // layers
         std::vector<const char*> layers;
-#ifndef NDEBUG
-        SPDLOG_DEBUG("Vulkan validations layers are enabled.");
-        layers = query_available_validation_layers();
-#endif
+        #ifndef NDEBUG
+            SPDLOG_DEBUG("Vulkan validations layers are enabled.");
+            layers = query_available_validation_layers();
+        #endif
 
         // log layers
         if (!layers.empty()) {
@@ -116,32 +116,10 @@ namespace bbge {
         instance_create_info.ppEnabledLayerNames = layers.empty() ? nullptr : layers.data();
 
         // instance creation debug messenger
-#ifndef NDEBUG
-
-    #pragma clang diagnostic push
-    #pragma ide diagnostic ignored "hicpp-signed-bitwise"
-
-        constexpr VkDebugUtilsMessageTypeFlagsEXT all_message_types =
-            VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-            VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-            VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-
-        constexpr VkDebugUtilsMessageSeverityFlagsEXT all_severities =
-            VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
-            VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-            VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-
-    #pragma clang diagnostic pop
-
-        VkDebugUtilsMessengerCreateInfoEXT debug_create_info { };
-        debug_create_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-        debug_create_info.messageType = all_message_types;
-        debug_create_info.messageSeverity = all_severities;
-        debug_create_info.pUserData = nullptr;
-        debug_create_info.pfnUserCallback = &vulkan_instance::debug_callback;
-        instance_create_info.pNext = &debug_create_info;
-
-#endif
+        #ifndef NDEBUG
+            auto debug_messenger_create_info = vulkan_utils::make_debug_messenger_all_messages();
+            instance_create_info.pNext = &debug_messenger_create_info;
+        #endif
 
         // creation
         auto res = vkCreateInstance(&instance_create_info, nullptr, &m_instance);
@@ -268,20 +246,24 @@ namespace bbge {
         return VK_FALSE;
     }
 
+    VkInstance vulkan_instance::get_handle() const noexcept {
+        return m_instance;
+    }
+
     int vulkan_utils::make_version(const bbge::version& v) {
 
         // leaky macro
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "hicpp-signed-bitwise"
+        #pragma clang diagnostic push
+        #pragma ide diagnostic ignored "hicpp-signed-bitwise"
         return VK_MAKE_VERSION(
             v.get_major(),
             v.has_minor() ? v.get_minor() : 0,
             v.has_patch() ? v.get_patch() : 0
         );
-#pragma clang diagnostic pop
+        #pragma clang diagnostic pop
     }
 
-    const std::string& vulkan_utils::to_string(VkResult res) {
+    std::string_view vulkan_utils::to_string(VkResult res) {
         auto it = result_names.find(res);
         if (it == result_names.end()) return invalid_name;
         return it->second;
@@ -317,8 +299,90 @@ namespace bbge {
         }
     }
 
+    VkDebugUtilsMessengerCreateInfoEXT vulkan_utils::make_debug_messenger_all_messages() noexcept {
+
+        #pragma clang diagnostic push
+        #pragma ide diagnostic ignored "hicpp-signed-bitwise"
+
+        constexpr VkDebugUtilsMessageTypeFlagsEXT all_message_types =
+            VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+            VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+            VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+
+        constexpr VkDebugUtilsMessageSeverityFlagsEXT all_severities =
+            VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+            VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+            VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+
+        #pragma clang diagnostic pop
+
+        VkDebugUtilsMessengerCreateInfoEXT debug_create_info { };
+        debug_create_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+        debug_create_info.messageType = all_message_types;
+        debug_create_info.messageSeverity = all_severities;
+        debug_create_info.pUserData = nullptr;
+        debug_create_info.pfnUserCallback = &vulkan_instance::debug_callback;
+
+        return debug_create_info;
+    }
+
     vulkan_error::vulkan_error(const std::string& msg, VkResult res)
         : std::runtime_error(fmt::format("[vulkan] {} (err={}).", msg, vulkan_utils::to_string(res))) {
 
+    }
+
+    vulkan_function_loader::vulkan_function_loader(VkInstance instance) : m_instance(instance) {
+        m_vkCreateDebugUtilsMessengerEXT = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
+        m_vkDestroyDebugUtilsMessengerEXT = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
+    }
+
+    VkResult vulkan_function_loader::vkCreateDebugUtilsMessengerEXT(
+        const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
+        const VkAllocationCallbacks* pAllocator,
+        VkDebugUtilsMessengerEXT* pMessenger) {
+
+        if (!m_vkCreateDebugUtilsMessengerEXT) return VkResult::VK_ERROR_EXTENSION_NOT_PRESENT;
+        return m_vkCreateDebugUtilsMessengerEXT(m_instance, pCreateInfo, pAllocator, pMessenger);
+    }
+
+    VkResult vulkan_function_loader::vkDestroyDebugUtilsMessengerEXT(
+        VkDebugUtilsMessengerEXT messenger,
+        const VkAllocationCallbacks* pAllocator) {
+
+        if (!m_vkDestroyDebugUtilsMessengerEXT) return VkResult::VK_ERROR_EXTENSION_NOT_PRESENT;
+        m_vkDestroyDebugUtilsMessengerEXT(m_instance, messenger, pAllocator);
+        return VK_SUCCESS;
+    }
+
+    vulkan_debug_messenger::~vulkan_debug_messenger() {
+        auto vkDestroyDebugUtilsMessengerEXT =
+            (PFN_vkDestroyDebugUtilsMessengerEXT)
+            vkGetInstanceProcAddr(m_instance, "vkDestroyDebugUtilsMessengerEXT");
+
+        if (vkDestroyDebugUtilsMessengerEXT && m_handle) {
+            vkDestroyDebugUtilsMessengerEXT(m_instance, m_handle, nullptr);
+            SPDLOG_TRACE("Disabled Vulkan debug messenger.");
+        }
+    }
+
+    vulkan_debug_messenger::vulkan_debug_messenger(VkInstance instance)
+      : m_instance(instance), m_handle(VK_NULL_HANDLE) {
+
+        auto messenger_create_info = vulkan_utils::make_debug_messenger_all_messages();
+
+        auto vkCreateDebugUtilsMessengerEXT =
+            (PFN_vkCreateDebugUtilsMessengerEXT)
+            vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
+        if (!vkCreateDebugUtilsMessengerEXT) {
+            SPDLOG_WARN("Tried to enable a debug messenger, the extension is not available.");
+            return;
+        }
+        auto res = vkCreateDebugUtilsMessengerEXT(instance, &messenger_create_info, nullptr, &m_handle);
+        if (res != VkResult::VK_SUCCESS) {
+            SPDLOG_WARN("Tried to enable a debug messenger, but it failed (err={}).", vulkan_utils::to_string(res));
+            return;
+        }
+
+        SPDLOG_TRACE("Enabled Vulkan debug messenger.");
     }
 }

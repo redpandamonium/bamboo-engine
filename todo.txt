@@ -1,0 +1,19 @@
+Version 0.1
+    - simple rendering
+        * phong shading
+        * mipmaps
+        * resizing support
+        * forward renderer
+        * MSAA
+    - resource loading for meshes
+        * assimp
+    - scenes
+        * entt
+        * hierarchy
+        * debug tools
+    - serialization
+        * save games
+        * should serialize to lua
+    - scripting
+        * scenes
+        * events
