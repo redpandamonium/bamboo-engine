@@ -40,6 +40,8 @@ namespace bbge {
         static VkDebugUtilsMessengerCreateInfoEXT make_debug_messenger_all_messages() noexcept;
         [[nodiscard]] static std::vector<VkExtensionProperties> query_available_instance_extensions();
         [[nodiscard]] static std::vector<VkLayerProperties> query_available_layers();
+        [[nodiscard]] static std::vector<VkQueueFamilyProperties> query_queue_families(VkPhysicalDevice dev);
+        [[nodiscard]] static std::vector<VkPhysicalDevice> query_physical_devices(VkInstance inst);
 
     private:
 
@@ -158,10 +160,25 @@ namespace bbge {
     public:
 
         /**
+         * @brief Strategy pattern to pick a physical device.
+         */
+        struct selection_strategy {
+            virtual ~selection_strategy() = default;
+            virtual VkPhysicalDevice select(VkInstance instance) const = 0;
+        };
+
+        /**
+         * @brief Default strategy
+         */
+        struct default_selection_strategy final : public selection_strategy {
+            VkPhysicalDevice select(VkInstance instance) const override;
+        };
+
+        /**
          * @brief Create a vulkan device. Let the implementation pick a device.
          * @param inst Valid instance
          */
-        vulkan_device(VkInstance inst);
+        explicit vulkan_device(VkInstance inst, const selection_strategy& strategy = selection_default);
 
         /**
          * @brief Create a vulkan device. Use the provided device.
@@ -175,6 +192,8 @@ namespace bbge {
         BBGE_NO_COPIES(vulkan_device);
 
     private:
+
+        static const default_selection_strategy selection_default;
 
         VkInstance m_instance;
         VkPhysicalDevice m_physical_device;

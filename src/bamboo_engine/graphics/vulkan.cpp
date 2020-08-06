@@ -319,12 +319,12 @@ namespace bbge {
         uint32_t num_avail = 0;
         auto res = vkEnumerateInstanceExtensionProperties(nullptr, &num_avail, nullptr);
         if (res != VkResult::VK_SUCCESS) {
-            SPDLOG_WARN("Failed to query vulkan instance extensions (err={}).", vulkan_utils::to_string(res));
+            throw vulkan_error("Failed to query available instance extensions", res);
         }
         std::vector<VkExtensionProperties> available(num_avail);
         res = vkEnumerateInstanceExtensionProperties(nullptr, &num_avail, available.data());
         if (res != VkResult::VK_SUCCESS) {
-            SPDLOG_WARN("Failed to query vulkan instance extensions (err={}).", vulkan_utils::to_string(res));
+            throw vulkan_error("Failed to query available instance extensions", res);
         }
 
         return available;
@@ -335,17 +335,39 @@ namespace bbge {
         uint32_t count = 0;
         auto res = vkEnumerateInstanceLayerProperties(&count, nullptr);
         if (res != VkResult::VK_SUCCESS) {
-            SPDLOG_WARN("Failed to query the available validation layers ({}). Not using any.", vulkan_utils::to_string(res));
-            return { };
+            throw vulkan_error("Failed to query available validation layers", res);
         }
         std::vector<VkLayerProperties> props(count);
         res = vkEnumerateInstanceLayerProperties(&count, props.data());
         if (res != VkResult::VK_SUCCESS) {
-            SPDLOG_WARN("Failed to query the available validation layers ({}). Not using any.", vulkan_utils::to_string(res));
-            return { };
+            throw vulkan_error("Failed to query available validation layers", res);
         }
 
         return props;
+    }
+
+    std::vector<VkQueueFamilyProperties> vulkan_utils::query_queue_families(VkPhysicalDevice dev) {
+        uint32_t count = 0;
+        vkGetPhysicalDeviceQueueFamilyProperties(dev, &count, nullptr);
+        std::vector<VkQueueFamilyProperties> props(count);
+        vkGetPhysicalDeviceQueueFamilyProperties(dev, &count, props.data());
+        return props;
+    }
+
+    std::vector<VkPhysicalDevice> vulkan_utils::query_physical_devices(VkInstance inst) {
+
+        uint32_t count = 0;
+        auto res = vkEnumeratePhysicalDevices(inst, &count, nullptr);
+        if (!res) {
+            throw vulkan_error("Failed to query physical devices", res);
+        }
+        std::vector<VkPhysicalDevice> devices(count);
+        res = vkEnumeratePhysicalDevices(inst, &count, devices.data());
+        if (!res) {
+            throw vulkan_error("Failed to query physical devices", res);
+        }
+
+        return devices;
     }
 
     vulkan_error::vulkan_error(const std::string& msg, VkResult res)
@@ -409,6 +431,26 @@ namespace bbge {
     }
 
     vulkan_device::~vulkan_device() {
+
+    }
+
+    vulkan_device::vulkan_device(VkInstance inst, const selection_strategy& strat)
+      : m_instance(inst), m_physical_device(strat.select(inst)), m_device(VK_NULL_HANDLE) {
+
+
+    }
+
+    VkPhysicalDevice vulkan_device::default_selection_strategy::select(VkInstance instance) const {
+
+        auto devices = vulkan_utils::query_physical_devices(instance);
+        if (devices.empty()) {
+
+        }
+    }
+
+    const vulkan_device::default_selection_strategy vulkan_device::selection_default { };
+
+    vulkan_device::vulkan_device(VkInstance inst, VkPhysicalDevice dev) {
 
     }
 }
