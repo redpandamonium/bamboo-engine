@@ -96,7 +96,7 @@ namespace bbge {
         std::vector<const char*> layers;
         #ifndef NDEBUG
             SPDLOG_DEBUG("Vulkan validations layers are enabled.");
-            layers = query_available_validation_layers();
+            layers = vulkan_utils::query_available_validation_layers();
         #endif
 
         // log layers
@@ -160,22 +160,6 @@ namespace bbge {
         return result;
     }
 
-    std::vector<const char*> vulkan_instance::query_available_validation_layers() {
-
-        auto props = vulkan_utils::query_available_layers();
-        std::vector<const char*> avail;
-
-        for (const char* requested_layer : validation_layers) {
-            auto it = std::find_if(props.begin(), props.end(),
-                                   [requested_layer](const VkLayerProperties& p) { return std::strcmp(requested_layer, p.layerName) == 0; });
-            if (it == props.end()) continue; // not available
-
-            avail.push_back(requested_layer);
-        }
-
-        return avail;
-    }
-
     std::vector<const char*> vulkan_instance::get_required_extensions() {
 
         // GLFW
@@ -233,7 +217,7 @@ namespace bbge {
 
     void vulkan_instance::print_available_layers() {
         SPDLOG_TRACE("Available Vulkan instance layers:");
-        for (const auto layer : vulkan_utils::query_available_layers()) {
+        for (const auto& layer : vulkan_utils::query_available_layers()) {
             SPDLOG_TRACE("+ {} at version {}.", layer.layerName, layer.specVersion);
         }
     }
@@ -358,16 +342,50 @@ namespace bbge {
 
         uint32_t count = 0;
         auto res = vkEnumeratePhysicalDevices(inst, &count, nullptr);
-        if (!res) {
+        if (res != VkResult::VK_SUCCESS) {
             throw vulkan_error("Failed to query physical devices", res);
         }
         std::vector<VkPhysicalDevice> devices(count);
         res = vkEnumeratePhysicalDevices(inst, &count, devices.data());
-        if (!res) {
+        if (res != VkResult::VK_SUCCESS) {
             throw vulkan_error("Failed to query physical devices", res);
         }
 
         return devices;
+    }
+
+    std::vector<const char*> vulkan_utils::query_available_validation_layers() {
+        auto props = vulkan_utils::query_available_layers();
+        std::vector<const char*> avail;
+
+        for (const char* requested_layer : validation_layers) {
+            auto it = std::find_if(props.begin(), props.end(),
+                                   [requested_layer](const VkLayerProperties& p) { return std::strcmp(requested_layer, p.layerName) == 0; });
+            if (it == props.end()) continue; // not available
+
+            avail.push_back(requested_layer);
+        }
+
+        return avail;
+    }
+
+    const char* vulkan_utils::convert_device_type(VkPhysicalDeviceType t) {
+        switch (t) {
+            case VK_PHYSICAL_DEVICE_TYPE_OTHER:
+                return "other";
+            case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:
+                return "integrated";
+            case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:
+                return "discrete";
+            case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:
+                return "virtual";
+            case VK_PHYSICAL_DEVICE_TYPE_CPU:
+                return "CPU";
+            case VK_PHYSICAL_DEVICE_TYPE_MAX_ENUM:
+                throw std::invalid_argument("VK_PHYSICAL_DEVICE_TYPE_MAX_ENUM is not a valid device type.");
+            default:
+                throw std::logic_error(fmt::format("Unhandled enum value {} at {}:{}", t, __FILE__, __LINE__));
+        }
     }
 
     vulkan_error::vulkan_error(const std::string& msg, VkResult res)
@@ -431,26 +449,176 @@ namespace bbge {
     }
 
     vulkan_device::~vulkan_device() {
-
+        if (m_device) {
+            vkDestroyDevice(m_device, nullptr);
+            SPDLOG_TRACE("Destroyed Vulkan device.");
+        }
     }
 
     vulkan_device::vulkan_device(VkInstance inst, const selection_strategy& strat)
-      : m_instance(inst), m_physical_device(strat.select(inst)), m_device(VK_NULL_HANDLE) {
+      : m_instance(inst), m_physical_device(strat.select(inst).or_throw()), m_device(create_device()) {
 
-
+        log_available_physical_devices();
     }
 
-    VkPhysicalDevice vulkan_device::default_selection_strategy::select(VkInstance instance) const {
+    result<VkPhysicalDevice, std::runtime_error> vulkan_device::default_selection_strategy::select(VkInstance instance) const {
 
+        // query devices
         auto devices = vulkan_utils::query_physical_devices(instance);
         if (devices.empty()) {
-
+            return { std::runtime_error("No devices connected.") };
         }
+
+        // remove all devices that are not suitable
+        devices.erase(std::remove_if(devices.begin(), devices.end(), is_device_unsuitable), devices.end());
+        if (devices.empty()) {
+            return { std::runtime_error("No devices are suitable.") };
+        }
+
+        // score devices
+        std::vector<std::pair<int, VkPhysicalDevice>> scores;
+        scores.reserve(devices.size());
+        for (const auto& dev : devices) {
+            int score = score_device(dev);
+            scores.emplace_back(score, dev);
+        }
+
+        // select and return the best one
+        auto it = std::max_element(scores.begin(), scores.end(),
+            [] (const auto& a, const auto& b) { return a.first < b.first; });
+
+        return { it->second };
+    }
+
+    bool vulkan_device::default_selection_strategy::is_device_unsuitable(VkPhysicalDevice dev) {
+
+        const auto has_graphics_queue_family = [] (const VkQueueFamilyProperties& qf) { return qf.queueFlags & VK_QUEUE_GRAPHICS_BIT; };
+
+        // Check if all required queue families are supported
+        auto queue_families = vulkan_utils::query_queue_families(dev);
+        if (std::none_of(queue_families.begin(), queue_families.end(), has_graphics_queue_family)) return true;
+
+        return false;
+    }
+
+    int vulkan_device::default_selection_strategy::score_device(VkPhysicalDevice dev) {
+
+        VkPhysicalDeviceProperties properties;
+        vkGetPhysicalDeviceProperties(dev, &properties);
+
+        int score = 0;
+
+        // heavily favor discrete GPUs
+        if (properties.deviceType == VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
+            score += 10000;
+        }
+
+        score += properties.limits.maxImageDimension2D;
+
+        return score;
     }
 
     const vulkan_device::default_selection_strategy vulkan_device::selection_default { };
 
-    vulkan_device::vulkan_device(VkInstance inst, VkPhysicalDevice dev) {
+    vulkan_device::vulkan_device(VkInstance inst, VkPhysicalDevice dev)
+      : m_instance(inst), m_physical_device(dev), m_device(create_device()) {
 
+    }
+
+    VkDevice vulkan_device::create_device() const {
+
+        log_selected_physical_device();
+
+        std::set<uint32_t> queue_family_indices = get_required_queue_family_indices();
+        std::vector<VkDeviceQueueCreateInfo> q_create_infos;
+        q_create_infos.reserve(queue_family_indices.size());
+
+        for (auto idx : queue_family_indices) {
+            VkDeviceQueueCreateInfo create { };
+            create.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+            create.pQueuePriorities = &default_queue_priority;
+            create.queueCount = 1;
+            create.queueFamilyIndex = idx;
+            q_create_infos.push_back(create);
+        }
+
+        // This is necessary cause on MacOS Vulkan 1.1 is not supported yet.
+        // Newer implementations ignore this.
+        // It should match up with the instance layer list.
+        std::vector<const char*> layers;
+        #ifndef NDEBUG
+        layers = vulkan_utils::query_available_validation_layers();
+        #endif
+
+        auto extensions = get_extensions();
+
+        VkPhysicalDeviceFeatures features { };
+
+        VkDeviceCreateInfo create_info { };
+        create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+        create_info.queueCreateInfoCount = q_create_infos.size();
+        create_info.pQueueCreateInfos = q_create_infos.data();
+        create_info.enabledLayerCount = layers.size();
+        create_info.ppEnabledLayerNames = layers.data();
+        create_info.enabledExtensionCount = extensions.size();
+        create_info.ppEnabledExtensionNames = extensions.data();
+        create_info.pEnabledFeatures = &features;
+
+        VkDevice dev;
+        auto res = vkCreateDevice(m_physical_device, &create_info, nullptr, &dev);
+        if (res != VkResult::VK_SUCCESS) {
+            throw vulkan_error("Failed to create logical device", res);
+        }
+
+        SPDLOG_TRACE("Created logical Vulkan device.");
+
+        return dev;
+    }
+
+    std::set<uint32_t> vulkan_device::get_required_queue_family_indices() const {
+
+        const auto has_graphics_queue_family = [] (const VkQueueFamilyProperties& qf) {
+            return qf.queueFlags & VK_QUEUE_GRAPHICS_BIT;
+        };
+
+        std::set<uint32_t> family_indices;
+        auto queue_families = vulkan_utils::query_queue_families(m_physical_device);
+
+        auto graphics_it = std::find_if(queue_families.begin(), queue_families.end(), has_graphics_queue_family);
+        if (graphics_it == queue_families.end()) throw std::logic_error("The device selection strategy selected an unsuitable device.");
+        family_indices.insert(std::distance(queue_families.begin(), graphics_it));
+
+        return family_indices;
+    }
+
+    std::vector<const char*> vulkan_device::get_extensions() {
+        // TODO: implement
+        return {};
+    }
+
+    void vulkan_device::log_available_physical_devices() const {
+
+        SPDLOG_TRACE("Available physical devices: ");
+        for (const auto& device : vulkan_utils::query_physical_devices(m_instance)) {
+
+            VkPhysicalDeviceProperties properties;
+            vkGetPhysicalDeviceProperties(device, &properties);
+
+            SPDLOG_DEBUG("+ [{}] '{}' with driver version {}.",
+                         vulkan_utils::convert_device_type(properties.deviceType),
+                         properties.deviceName,
+                         properties.driverVersion);
+        }
+    }
+
+    void vulkan_device::log_selected_physical_device() const {
+
+        VkPhysicalDeviceProperties properties;
+        vkGetPhysicalDeviceProperties(m_physical_device, &properties);
+
+        SPDLOG_DEBUG("Using {} physical device '{}' with driver version {}.",
+            vulkan_utils::convert_device_type(properties.deviceType),
+            properties.deviceName,
+            properties.driverVersion);
     }
 }

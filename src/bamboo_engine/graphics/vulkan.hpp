@@ -26,7 +26,9 @@
 #include "../util/version.hpp"
 #include "../client/window.hpp"
 #include <cmake_config.hpp>
+#include <set>
 #include "../util/macros.hpp"
+#include "../util/result.hpp"
 
 namespace bbge {
 
@@ -35,15 +37,25 @@ namespace bbge {
 
         static int make_version(const version& v);
         static std::string_view to_string(VkResult res);
-        static const char* convert_severity(VkDebugUtilsMessageSeverityFlagBitsEXT sev);
-        static const char* convert_type(VkDebugUtilsMessageTypeFlagsEXT typ);
-        static VkDebugUtilsMessengerCreateInfoEXT make_debug_messenger_all_messages() noexcept;
+        [[nodiscard]] static const char* convert_device_type(VkPhysicalDeviceType t);
+        [[nodiscard]] static const char* convert_severity(VkDebugUtilsMessageSeverityFlagBitsEXT sev);
+        [[nodiscard]] static const char* convert_type(VkDebugUtilsMessageTypeFlagsEXT typ);
+        [[nodiscard]] static VkDebugUtilsMessengerCreateInfoEXT make_debug_messenger_all_messages() noexcept;
         [[nodiscard]] static std::vector<VkExtensionProperties> query_available_instance_extensions();
         [[nodiscard]] static std::vector<VkLayerProperties> query_available_layers();
         [[nodiscard]] static std::vector<VkQueueFamilyProperties> query_queue_families(VkPhysicalDevice dev);
         [[nodiscard]] static std::vector<VkPhysicalDevice> query_physical_devices(VkInstance inst);
+        [[nodiscard]] static std::vector<const char*> query_available_validation_layers();
 
     private:
+
+        static constexpr const char* validation_layers[] = {
+            "VK_LAYER_KHRONOS_validation",
+            "VK_LAYER_LUNARG_standard_validation",
+            "VK_LAYER_LUNARG_core_validation",
+            "VK_LAYER_LUNARG_parameter_validation",
+            "VK_LAYER_LUNARG_object_tracker"
+        };
 
         static const std::unordered_map<VkResult, std::string> result_names;
         static const std::string_view invalid_name;
@@ -118,13 +130,6 @@ namespace bbge {
     private:
 
         static constexpr const version engine_version { BAMBOOENGINE_VERSION_MAJOR, BAMBOOENGINE_VERSION_MINOR };
-        static constexpr const char* validation_layers[] = {
-            "VK_LAYER_KHRONOS_validation",
-            "VK_LAYER_LUNARG_standard_validation",
-            "VK_LAYER_LUNARG_core_validation",
-            "VK_LAYER_LUNARG_parameter_validation",
-            "VK_LAYER_LUNARG_object_tracker"
-        };
         static constexpr const char* optional_extensions[] = {
             VK_EXT_DEBUG_UTILS_EXTENSION_NAME
         };
@@ -139,7 +144,6 @@ namespace bbge {
 
         // layers
         static void print_available_layers();
-        [[nodiscard]] static std::vector<const char*> query_available_validation_layers();
     };
 
     class vulkan_debug_messenger {
@@ -164,14 +168,21 @@ namespace bbge {
          */
         struct selection_strategy {
             virtual ~selection_strategy() = default;
-            virtual VkPhysicalDevice select(VkInstance instance) const = 0;
+            [[nodiscard]] virtual result<VkPhysicalDevice, std::runtime_error> select(VkInstance instance) const = 0;
         };
 
         /**
          * @brief Default strategy
          */
-        struct default_selection_strategy final : public selection_strategy {
-            VkPhysicalDevice select(VkInstance instance) const override;
+        class default_selection_strategy final : public selection_strategy {
+        public:
+
+            [[nodiscard]] result<VkPhysicalDevice, std::runtime_error> select(VkInstance instance) const override;
+
+        private:
+
+            [[nodiscard]] static bool is_device_unsuitable(VkPhysicalDevice dev);
+            [[nodiscard]] static int score_device(VkPhysicalDevice dev);
         };
 
         /**
@@ -193,11 +204,27 @@ namespace bbge {
 
     private:
 
+        static constexpr const char* validation_layers[] = {
+            "VK_LAYER_KHRONOS_validation",
+            "VK_LAYER_LUNARG_standard_validation",
+            "VK_LAYER_LUNARG_core_validation",
+            "VK_LAYER_LUNARG_parameter_validation",
+            "VK_LAYER_LUNARG_object_tracker"
+        };
+
         static const default_selection_strategy selection_default;
+        static constexpr const float default_queue_priority = 1.0f;
 
         VkInstance m_instance;
         VkPhysicalDevice m_physical_device;
         VkDevice m_device;
+
+        [[nodiscard]] VkDevice create_device() const;
+        [[nodiscard]] std::set<uint32_t> get_required_queue_family_indices() const;
+        [[nodiscard]] static std::vector<const char*> get_extensions();
+
+        void log_available_physical_devices() const;
+        void log_selected_physical_device() const;
     };
 }
 
