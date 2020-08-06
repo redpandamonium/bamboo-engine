@@ -41,6 +41,9 @@ namespace bbge {
 
         ~glfw_api();
 
+        BBGE_NO_COPIES(glfw_api);
+        BBGE_NO_MOVES(glfw_api);
+
         /**
          * @brief Get the GLFW library version.
          * @return Version

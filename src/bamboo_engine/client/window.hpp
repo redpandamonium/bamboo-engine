@@ -23,6 +23,7 @@
 #include <string>
 #include <glm/glm.hpp>
 #include <glfw/glfw3.h>
+#include "../util/macros.hpp"
 
 namespace bbge {
 
@@ -43,10 +44,7 @@ namespace bbge {
         glfw_window(std::string&& title, glm::ivec2 position, glm::ivec2 dimensions);
         ~glfw_window() override;
 
-        // no copies
-        glfw_window(glfw_window&) = delete;
-        glfw_window& operator=(glfw_window&) = delete;
-
+        BBGE_NO_COPIES(glfw_window);
 
     private:
 

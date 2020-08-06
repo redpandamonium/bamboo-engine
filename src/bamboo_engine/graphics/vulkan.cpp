@@ -407,4 +407,8 @@ namespace bbge {
 
         SPDLOG_TRACE("Enabled Vulkan debug messenger.");
     }
+
+    vulkan_device::~vulkan_device() {
+
+    }
 }

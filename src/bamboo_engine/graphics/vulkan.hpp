@@ -26,6 +26,7 @@
 #include "../util/version.hpp"
 #include "../client/window.hpp"
 #include <cmake_config.hpp>
+#include "../util/macros.hpp"
 
 namespace bbge {
 
@@ -89,6 +90,8 @@ namespace bbge {
         vulkan_instance(const std::string& app_name, version app_version);
         ~vulkan_instance();
 
+        BBGE_NO_COPIES(vulkan_instance);
+
         /**
          * @brief Debug callback used by the Vulkan API for validation purposes.
          * @param message_severity Severity
@@ -143,10 +146,39 @@ namespace bbge {
         explicit vulkan_debug_messenger(VkInstance instance);
         ~vulkan_debug_messenger();
 
+        BBGE_NO_COPIES(vulkan_debug_messenger);
+
     private:
 
         VkInstance m_instance;
         VkDebugUtilsMessengerEXT m_handle;
+    };
+
+    class vulkan_device {
+    public:
+
+        /**
+         * @brief Create a vulkan device. Let the implementation pick a device.
+         * @param inst Valid instance
+         */
+        vulkan_device(VkInstance inst);
+
+        /**
+         * @brief Create a vulkan device. Use the provided device.
+         * @param inst Valid instance
+         * @param dev Device to use
+         */
+        vulkan_device(VkInstance inst, VkPhysicalDevice dev);
+
+        ~vulkan_device();
+
+        BBGE_NO_COPIES(vulkan_device);
+
+    private:
+
+        VkInstance m_instance;
+        VkPhysicalDevice m_physical_device;
+        VkDevice m_device;
     };
 }
 
