@@ -29,8 +29,9 @@ conan_basic_setup(TARGETS)
 
 add_library(bamboo-engine src/bamboo_engine/client/window.cpp src/bamboo_engine/client/window.hpp
         src/bamboo_engine/client/window.cpp src/bamboo_engine/client/window.hpp
-        src/bamboo_engine/client/sdl.cpp src/bamboo_engine/client/sdl.hpp
-        src/bamboo_engine/util/logging.cpp src/bamboo_engine/util/logging.hpp src/bamboo_engine/graphics/vulkan.cpp src/bamboo_engine/graphics/vulkan.hpp)
+        src/bamboo_engine/util/logging.cpp src/bamboo_engine/util/logging.hpp
+        src/bamboo_engine/graphics/vulkan.cpp src/bamboo_engine/graphics/vulkan.hpp
+        src/bamboo_engine/client/glfw.cpp src/bamboo_engine/util/version.cpp)
 target_include_directories(bamboo-engine INTERFACE src PUBLIC "${PROJECT_BINARY_DIR}")
 target_link_libraries(bamboo-engine PUBLIC
         CONAN_PKG::spdlog CONAN_PKG::nlohmann_json CONAN_PKG::gsl-lite CONAN_PKG::boost CONAN_PKG::tsl-robin-map
@@ -43,3 +44,9 @@ target_link_libraries(bamboo-engine-client PUBLIC bamboo-engine)
 # Tests
 # ----------------------------------------------------------------------------------------------------------------------
 enable_testing()
+
+add_executable(
+        bamboo-engine-test
+        test/version_test.cpp)
+target_link_libraries(bamboo-engine-test PUBLIC CONAN_PKG::gtest bamboo-engine)
+add_test(bamboo-engine-test COMMAND bamboo-engine-test)

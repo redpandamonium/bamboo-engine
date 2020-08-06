@@ -22,7 +22,7 @@
 
 #include <string>
 #include <glm/glm.hpp>
-#include <SDL2/SDL_video.h>
+#include <glfw/glfw3.h>
 
 namespace bbge {
 
@@ -37,41 +37,21 @@ namespace bbge {
         virtual ~window() = default;
     };
 
-    /**
-     * @brief Window implementation using the SDL2 API.
-     */
-    class sdl_window final : public window {
+    class glfw_window final : public window {
     public:
 
-        /**
-         * @brief Create a new window.
-         * @param name Window title
-         * @param dimensions Dimensions of the window
-         * @param position Position of the window on the main monitor
-         * @see bbge::window for position constants
-         *
-         * SDL must be init before this.
-         */
-        sdl_window(const std::string& name, glm::ivec2 dimensions, glm::ivec2 position);
+        glfw_window(std::string&& title, glm::ivec2 position, glm::ivec2 dimensions);
+        ~glfw_window() override;
 
-        /**
-         * @brief Destructor. Closes the window.
-         */
-        ~sdl_window() override;
+        // no copies
+        glfw_window(glfw_window&) = delete;
+        glfw_window& operator=(glfw_window&) = delete;
 
-        /**
-         * @brief Get the internal handle of this window.
-         * @return Internal handle.
-         */
-        [[nodiscard]]
-        SDL_Window* get_handle() noexcept;
 
     private:
 
-        SDL_Window* m_handle;
-
-        [[nodiscard]]
-        static glm::ivec2 convert_position(glm::ivec2 pos) noexcept;
+        GLFWwindow* m_handle;
+        std::string m_title;
     };
 }
 

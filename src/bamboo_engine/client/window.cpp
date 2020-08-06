@@ -19,53 +19,25 @@
 
 #include "window.hpp"
 #include "../util/logging.hpp"
-#include "sdl.hpp"
+#include "glfw.hpp"
+#include <SDL2/SDL_vulkan.h>
 
 namespace bbge {
 
-
-    SDL_Window* sdl_window::get_handle() noexcept {
-        return m_handle;
-    }
-
-    sdl_window::sdl_window(const std::string& name, glm::ivec2 dimensions, glm::ivec2 position)
-        : m_handle(nullptr) {
-
-        // Convert to API specific constants
-        position = convert_position(position);
-
-        // Open
-        m_handle = SDL_CreateWindow(name.c_str(), position.x, position.y, dimensions.x, dimensions.y, SDL_WINDOW_VULKAN);
+    glfw_window::glfw_window(std::string&& title, [[maybe_unused]] glm::ivec2 position, glm::ivec2 dimensions)
+        : m_handle(nullptr), m_title(std::move(title)) {
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // for vulkan
+        m_handle = glfwCreateWindow(dimensions.x, dimensions.y, title.c_str(), nullptr, nullptr);
         if (!m_handle) {
-            throw sdl_error("Failed to open window.");
+            throw glfw_error(fmt::format("Failed to open window '{}'.", title));
         }
-
-        SPDLOG_DEBUG("Opened window '{}' [{}].", name, SDL_GetWindowID(m_handle));
+        SPDLOG_TRACE("Opened window '{}'.", m_title);
     }
 
-
-    // Disable signed bitwise check. SDL2 leaks this warning.
-    #pragma clang diagnostic push
-    #pragma ide diagnostic ignored "hicpp-signed-bitwise"
-
-    glm::ivec2 sdl_window::convert_position(glm::ivec2 pos) noexcept {
-        if (pos.x == window::position_dontcare.x) pos.x = SDL_WINDOWPOS_UNDEFINED;
-        if (pos.x == window::position_center.x) pos.x = SDL_WINDOWPOS_CENTERED;
-        if (pos.y == window::position_dontcare.y) pos.y = SDL_WINDOWPOS_UNDEFINED;
-        if (pos.y == window::position_center.y) pos.y = SDL_WINDOWPOS_CENTERED;
-        return pos;
-    }
-
-    sdl_window::~sdl_window() {
-
-        // If the window is valid, we need to destroy it.
+    glfw_window::~glfw_window() {
         if (m_handle) {
-            auto id = SDL_GetWindowID(m_handle);
-            SDL_DestroyWindow(m_handle);
-            SPDLOG_DEBUG("Closed window [{}].", id);
+            glfwDestroyWindow(m_handle);
+            SPDLOG_TRACE("Closed window '{}'.", m_title);
         }
     }
-
-#pragma clang diagnostic pop
-
 }
