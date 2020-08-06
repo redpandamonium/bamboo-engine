@@ -82,21 +82,15 @@ namespace bbge {
 
         /**
          * @brief Get the result or throw an error on err
-         * @tparam Exception Exception type
-         * @param ex Exception to throw
          * @return Result if this is ok
          */
-        template <typename Exception>
-        const ok_type& or_throw(const Exception& ex) const;
+        const ok_type& or_throw() const;
 
         /**
          * @brief Get the result or throw an error on err
-         * @tparam Exception Exception type
-         * @param ex Exception to throw
          * @return Result if this is ok
          */
-        template <typename Exception>
-        ok_type& or_throw(const Exception& ex);
+        ok_type& or_throw();
 
         /**
          * @brief Get the optional value.
@@ -168,9 +162,14 @@ namespace bbge {
     }
 
     template <typename Result, typename Error>
-    template <typename Exception>
-    const typename result<Result, Error>::ok_type& result<Result, Error>::or_throw(const Exception& ex) const {
-        if (is_err()) throw ex;
+    const typename result<Result, Error>::ok_type& result<Result, Error>::or_throw() const {
+        if (is_err()) throw *err();
+        return *ok();
+    }
+
+    template <typename Result, typename Error>
+    typename result<Result, Error>::ok_type& result<Result, Error>::or_throw() {
+        if (is_err()) throw *err();
         return *ok();
     }
 
@@ -183,13 +182,6 @@ namespace bbge {
     template <typename Result, typename Error>
     typename result<Result, Error>::ok_type& result<Result, Error>::or_else(ok_type& otherwise) {
         if (is_err()) return otherwise;
-        return *ok();
-    }
-
-    template <typename Result, typename Error>
-    template <typename Exception>
-    typename result<Result, Error>::ok_type& result<Result, Error>::or_throw(const Exception& ex) {
-        if (is_err()) throw ex;
         return *ok();
     }
 
