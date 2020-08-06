@@ -32,7 +32,7 @@ namespace bbge {
 
         // Sinks
         auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("logs/latest.log");
-        auto console_sink = std::make_shared<spdlog::sinks::stderr_color_sink_mt>();
+        auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
         std::vector<spdlog::sink_ptr> sinks { console_sink, file_sink };
 
         // Create logger

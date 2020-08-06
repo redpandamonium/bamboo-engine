@@ -24,6 +24,9 @@ endif()
 include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 conan_basic_setup(TARGETS)
 
+# Vulkan is not supplied by Conan
+find_package(Vulkan REQUIRED)
+
 # Targets
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -35,7 +38,7 @@ add_library(bamboo-engine src/bamboo_engine/client/window.cpp src/bamboo_engine/
 target_include_directories(bamboo-engine INTERFACE src PUBLIC "${PROJECT_BINARY_DIR}")
 target_link_libraries(bamboo-engine PUBLIC
         CONAN_PKG::spdlog CONAN_PKG::nlohmann_json CONAN_PKG::gsl-lite CONAN_PKG::boost CONAN_PKG::tsl-robin-map
-        CONAN_PKG::sdl2 CONAN_PKG::glm CONAN_PKG::entt CONAN_PKG::fmt)
+        CONAN_PKG::glm CONAN_PKG::entt CONAN_PKG::fmt CONAN_PKG::glfw Vulkan::Vulkan)
 
 add_executable(bamboo-engine-client src/bamboo_engine/client/main.cpp)
 target_link_libraries(bamboo-engine-client PUBLIC bamboo-engine)

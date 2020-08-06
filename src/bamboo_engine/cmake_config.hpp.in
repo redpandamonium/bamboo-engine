@@ -1,8 +1,6 @@
-// ------------------------------
-// AE Vertex Cover solver
+// Bamboo Engine, a 3D game engine.
 // Copyright (C) 2020 Leon Suchy
-// ------------------------------
-// 
+//
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
@@ -15,14 +13,14 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
-// 
-// Created by Leon Suchy on 18.06.20.
+//
+// Created by Leon Suchy on 04.08.20.
 //
 
-#ifndef AEVERTEXCOVER_CMAKE_CONFIG_HPP_IN
-#define AEVERTEXCOVER_CMAKE_CONFIG_HPP_IN
+#ifndef BAMBOOENGINE_CMAKE_CONFIG_HPP_IN
+#define BAMBOOENGINE_CMAKE_CONFIG_HPP_IN
 
-#define AEVC_VERSION_MAJOR @AEVertexCover_VERSION_MAJOR@
-#define AEVC_VERSION_MINOR @AEVertexCover_VERSION_MINOR@
+#define BAMBOOENGINE_VERSION_MAJOR @BambooEngine_VERSION_MAJOR@
+#define BAMBOOENGINE_VERSION_MINOR @BambooEngine_VERSION_MINOR@
 
-#endif //AEVERTEXCOVER_CMAKE_CONFIG_HPP_IN
+#endif //BAMBOOENGINE_CMAKE_CONFIG_HPP_IN

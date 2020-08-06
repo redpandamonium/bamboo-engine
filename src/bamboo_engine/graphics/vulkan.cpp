@@ -20,7 +20,6 @@
 #include "vulkan.hpp"
 #include <SDL2/SDL_vulkan.h>
 #include "../util/logging.hpp"
-#include "../client/sdl.hpp"
 
 namespace bbge {
 
