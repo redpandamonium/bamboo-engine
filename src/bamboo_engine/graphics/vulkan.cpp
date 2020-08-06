@@ -374,12 +374,12 @@ namespace bbge {
             (PFN_vkCreateDebugUtilsMessengerEXT)
             vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
         if (!vkCreateDebugUtilsMessengerEXT) {
-            SPDLOG_WARN("Tried to enable a debug messenger, the extension is not available.");
+            SPDLOG_WARN("Tried to enable Vulkan debug messenger, the extension is not available.");
             return;
         }
         auto res = vkCreateDebugUtilsMessengerEXT(instance, &messenger_create_info, nullptr, &m_handle);
         if (res != VkResult::VK_SUCCESS) {
-            SPDLOG_WARN("Tried to enable a debug messenger, but it failed (err={}).", vulkan_utils::to_string(res));
+            SPDLOG_WARN("Tried to enable Vulkan debug messenger, but it failed (err={}).", vulkan_utils::to_string(res));
             return;
         }
 
