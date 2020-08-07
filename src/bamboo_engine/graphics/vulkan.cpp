@@ -21,6 +21,7 @@
 #include <SDL2/SDL_vulkan.h>
 #include "../util/logging.hpp"
 #include "vulkan_utils.hpp"
+#include "../client/glfw.hpp"
 
 namespace bbge {
 
@@ -313,30 +314,10 @@ namespace bbge {
 
     bool vulkan_device::default_selection_strategy::is_device_suitable(VkSurfaceKHR surface, VkPhysicalDevice dev) {
 
-        const auto has_graphics_queue_family = [] (const VkQueueFamilyProperties& qf) { return qf.queueFlags & VK_QUEUE_GRAPHICS_BIT; };
-
-        // Check if all required queue families are supported
-        auto queue_families = vulkan_utils::query_queue_families(dev);
-        if (std::none_of(queue_families.begin(), queue_families.end(), has_graphics_queue_family)) return false;
-
-        // needs presentation support
-        VkBool32 supported = VK_FALSE;
-        for (auto it = queue_families.begin(); it != queue_families.end(); ++it) {
-            vkGetPhysicalDeviceSurfaceSupportKHR(dev, std::distance(queue_families.begin(), it), surface, &supported);
-            if (supported) break;
-        }
-        if (!supported) return false;
-
-        // needs to support all required extensions
-        auto extensions_res = vulkan_utils::query_available_device_extensions(dev);
-        auto& extensions = extensions_res.or_throw();
-        for (const char* required : required_extensions) {
-            auto it = std::find_if(extensions.begin(), extensions.end(),
-                [required](const VkExtensionProperties& props) { return std::strcmp(required, props.extensionName) == 0; });
-            if (it == extensions.end()) {
-                return false;
-            }
-        }
+        if (!check_graphics_support(dev)) return false;
+        if (!check_presentation_support(dev, surface)) return false;
+        if (!check_required_extensions(dev)) return false;
+        if (!check_swap_chain_support(surface, dev)) return false;
 
         return true;
     }
@@ -358,10 +339,54 @@ namespace bbge {
         return score;
     }
 
-    bool vulkan_device::default_selection_strategy::check_device_swap_chain_support(
+    bool vulkan_device::default_selection_strategy::check_swap_chain_support(
         VkSurfaceKHR surface, VkPhysicalDevice dev) {
 
+        auto formats_res = vulkan_utils::query_surface_formats(dev, surface);
+        if (formats_res.or_else({ }).empty()) return false;
+        auto present_modes_res = vulkan_utils::query_present_modes(dev, surface);
+        if (present_modes_res.or_else({ }).empty()) return false;
 
+        return true;
+    }
+
+    bool vulkan_device::default_selection_strategy::check_required_extensions(VkPhysicalDevice dev) {
+
+        auto extensions_res = vulkan_utils::query_available_device_extensions(dev);
+        auto& extensions = extensions_res.or_throw();
+        for (const char* required : required_extensions) {
+            auto it = std::find_if(extensions.begin(), extensions.end(),
+                                   [required](const VkExtensionProperties& props) { return std::strcmp(required, props.extensionName) == 0; });
+            if (it == extensions.end()) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    bool vulkan_device::default_selection_strategy::check_presentation_support(VkPhysicalDevice dev, VkSurfaceKHR surface) {
+
+        auto queue_families = vulkan_utils::query_queue_families(dev);
+
+        for (auto it = queue_families.begin(); it != queue_families.end(); ++it) {
+            VkBool32 supported = VK_FALSE;
+            vkGetPhysicalDeviceSurfaceSupportKHR(dev, std::distance(queue_families.begin(), it), surface, &supported);
+            if (supported) return true;
+        }
+
+        return false;
+    }
+
+    bool vulkan_device::default_selection_strategy::check_graphics_support(VkPhysicalDevice dev) {
+
+        const auto has_graphics_queue_family = [] (const VkQueueFamilyProperties& qf) {
+            return qf.queueFlags & VK_QUEUE_GRAPHICS_BIT;
+        };
+
+        // Check if all required queue families are supported
+        auto queue_families = vulkan_utils::query_queue_families(dev);
+        return std::any_of(queue_families.begin(), queue_families.end(), has_graphics_queue_family);
     }
 
     const vulkan_device::default_selection_strategy vulkan_device::selection_default { };
@@ -551,7 +576,81 @@ namespace bbge {
         return m_surface;
     }
 
-    vulkan_swap_chain::vulkan_swap_chain(VkInstance instance, VkDevice device, VkSurfaceKHR surface) {
+    vulkan_swap_chain::vulkan_swap_chain(VkInstance instance, VkPhysicalDevice physical_device, VkDevice device, VkSurfaceKHR surface, const glfw_window& window) {
         // TODO: implement
+
+        auto format = pick_surface_format(physical_device, surface);
+        auto present_mode = pick_present_mode(physical_device, surface);
+        auto extent = pick_swap_extent(physical_device, surface, window.get_handle());
+
+        auto capabilities = vulkan_utils::query_surface_capabilities(physical_device, surface).or_throw();
+
+        auto image_count = std::min(capabilities.minImageCount + 1, capabilities.maxImageCount);
+
+        VkSwapchainCreateInfoKHR create_info { };
+        create_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+        create_info.imageFormat = format.format;
+        create_info.imageColorSpace = format.colorSpace;
+        create_info.presentMode = present_mode;
+        create_info.imageExtent = extent;
+        create_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        create_info.minImageCount = image_count;
+        create_info.imageArrayLayers = 1;
+
+        // TODO: finish
+    }
+
+    VkSurfaceFormatKHR vulkan_swap_chain::pick_surface_format(VkPhysicalDevice device, VkSurfaceKHR surface) {
+        auto surface_formats = vulkan_utils::query_surface_formats(device, surface);
+        auto& formats = surface_formats.or_throw();
+        if (formats.empty()) {
+            throw std::logic_error("The device selection strategy selected an unsuitable device. No surface formats are supported.");
+        }
+
+        for (const auto& format : formats) {
+            if (format.format == VK_FORMAT_B8G8R8A8_SRGB && format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+                return format;
+            }
+        }
+
+        return formats.front();
+    }
+
+    VkPresentModeKHR vulkan_swap_chain::pick_present_mode(VkPhysicalDevice device, VkSurfaceKHR surface) {
+        auto present_modes = vulkan_utils::query_present_modes(device, surface);
+        auto& modes = present_modes.or_throw();
+        if (modes.empty()) {
+            throw std::logic_error("No present modes even though VK_PRESENT_MODE_FIFO_KHR should be guaranteed.");
+        }
+
+        // prefer triple buffered
+        auto it = std::find(modes.begin(), modes.end(), VK_PRESENT_MODE_MAILBOX_KHR);
+        if (it != modes.end()) return VK_PRESENT_MODE_MAILBOX_KHR;
+
+        // vsync
+        return VK_PRESENT_MODE_FIFO_KHR; // always available
+    }
+
+    VkExtent2D vulkan_swap_chain::pick_swap_extent(VkPhysicalDevice device, VkSurfaceKHR surface, GLFWwindow* win) {
+
+        auto capabilities = vulkan_utils::query_surface_capabilities(device, surface).or_throw();
+
+        // use automatic resolution pick
+        if (capabilities.currentExtent.width != std::numeric_limits<decltype(capabilities.currentExtent.width)>::max()) {
+            return capabilities.currentExtent;
+        }
+
+        // use manual resolution pick
+        glm::ivec2 queried_from_window { };
+        glfwGetWindowSize(win, &queried_from_window.x, &queried_from_window.y);
+
+        if (queried_from_window.x < 0 || queried_from_window.y < 0) {
+            throw glfw_error("Window size returned from glfwGetWindowSize is invalid.");
+        }
+
+        glm::uvec2 ext = queried_from_window;
+        ext.x = std::clamp(ext.x, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+        ext.y = std::clamp(ext.y, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+        return { ext.x, ext.y };
     }
 }

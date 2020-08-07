@@ -156,7 +156,10 @@ namespace bbge {
 
             [[nodiscard]] static bool is_device_suitable(VkSurfaceKHR surface, VkPhysicalDevice dev);
             [[nodiscard]] static int score_device(VkPhysicalDevice dev);
-            [[nodiscard]] static bool check_device_swap_chain_support(VkSurfaceKHR surface, VkPhysicalDevice dev);
+            [[nodiscard]] static bool check_swap_chain_support(VkSurfaceKHR surface, VkPhysicalDevice dev);
+            [[nodiscard]] static bool check_required_extensions(VkPhysicalDevice dev);
+            [[nodiscard]] static bool check_presentation_support(VkPhysicalDevice dev, VkSurfaceKHR surface);
+            [[nodiscard]] static bool check_graphics_support(VkPhysicalDevice dev);
         };
 
         struct queue_handles {
@@ -259,11 +262,13 @@ namespace bbge {
     class vulkan_swap_chain {
     public:
 
-        vulkan_swap_chain(VkInstance instance, VkDevice device, VkSurfaceKHR surface);
+        vulkan_swap_chain(VkInstance instance, VkPhysicalDevice physical_device, VkDevice device, VkSurfaceKHR surface, const glfw_window& window);
 
     private:
 
-
+        [[nodiscard]] static VkSurfaceFormatKHR pick_surface_format(VkPhysicalDevice dev, VkSurfaceKHR surface);
+        [[nodiscard]] static VkPresentModeKHR pick_present_mode(VkPhysicalDevice device, VkSurfaceKHR surface);
+        [[nodiscard]] static VkExtent2D pick_swap_extent(VkPhysicalDevice device, VkSurfaceKHR surface, GLFWwindow* win);
     };
 }
 
