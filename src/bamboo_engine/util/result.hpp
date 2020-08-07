@@ -7,6 +7,8 @@
 
 #include <variant>
 #include <utility>
+#include <experimental/source_location>
+#include "logging.hpp"
 
 namespace bbge {
 
@@ -128,6 +130,14 @@ namespace bbge {
          */
         const err_type* err() const;
 
+        /**
+         * @brief If this is err then log it.
+         */
+        result<ok_type, err_type>& log_err(
+            spdlog::level::level_enum l = spdlog::level::err,
+            const std::experimental::source_location& loc = std::experimental::source_location::current()
+        ) const;
+
     private:
 
         // Consider doing something more performant. Some compilers really struggle with variant.
@@ -207,6 +217,15 @@ namespace bbge {
     template <typename Result, typename Error>
     result<Result, Error>::result(const ok_type& o) : m_variant(o) {
 
+    }
+
+    template <typename Result, typename Error>
+    result<typename result<Result, Error>::ok_type, typename result<Result, Error>::err_type>&
+    result<Result, Error>::log_err(spdlog::level::level_enum l, const std::experimental::source_location& loc) const {
+        if (is_err()) {
+            auto src_loc = spdlog::source_loc(loc.file_name(), loc.line(), loc.function_name());
+            spdlog::log(src_loc, l, err()->what());
+        }
     }
 
     template <typename Result, typename Error>
