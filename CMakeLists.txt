@@ -8,8 +8,8 @@ configure_file(src/bamboo_engine/cmake_config.hpp.in cmake_config.hpp)
 # Build options
 # ----------------------------------------------------------------------------------------------------------------------
 
-# Ensure we get C++2a with no compiler extensions enabled
-set(CMAKE_CXX_STANDARD 20)
+# Ensure we get C++17 with no compiler extensions enabled
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
