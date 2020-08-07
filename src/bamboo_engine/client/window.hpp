@@ -46,6 +46,8 @@ namespace bbge {
 
         BBGE_NO_COPIES(glfw_window);
 
+        [[nodiscard]] GLFWwindow* get_handle() const noexcept;
+
     private:
 
         GLFWwindow* m_handle;

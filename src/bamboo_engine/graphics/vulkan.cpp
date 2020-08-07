@@ -455,8 +455,10 @@ namespace bbge {
         }
     }
 
-    vulkan_device::vulkan_device(VkInstance inst, const selection_strategy& strat)
-      : m_instance(inst), m_physical_device(strat.select(inst).or_throw()), m_device(), m_queue_handles() {
+    vulkan_device::vulkan_device(VkInstance inst, VkSurfaceKHR surface, const selection_strategy& strat)
+      : m_instance(inst), m_surface(surface),
+        m_physical_device(strat.select(inst, surface).or_throw()), m_device(),
+        m_queue_handles() {
 
         log_available_physical_devices();
         auto [device, indices] = create_device();
@@ -464,13 +466,15 @@ namespace bbge {
         m_queue_handles = get_queue_handles(indices);
     }
 
-    result<VkPhysicalDevice, std::runtime_error> vulkan_device::default_selection_strategy::select(VkInstance instance) const {
+    result<VkPhysicalDevice, std::runtime_error> vulkan_device::default_selection_strategy::select(VkInstance instance, VkSurfaceKHR surface) const {
 
         // query devices
         auto devices = vulkan_utils::query_physical_devices(instance);
         if (devices.empty()) {
             return { std::runtime_error("No devices connected.") };
         }
+
+        const auto is_device_unsuitable = [&] (VkPhysicalDevice dev) { return !is_device_suitable(surface, dev); };
 
         // remove all devices that are not suitable
         devices.erase(std::remove_if(devices.begin(), devices.end(), is_device_unsuitable), devices.end());
@@ -493,15 +497,23 @@ namespace bbge {
         return { it->second };
     }
 
-    bool vulkan_device::default_selection_strategy::is_device_unsuitable(VkPhysicalDevice dev) {
+    bool vulkan_device::default_selection_strategy::is_device_suitable(VkSurfaceKHR surface, VkPhysicalDevice dev) {
 
         const auto has_graphics_queue_family = [] (const VkQueueFamilyProperties& qf) { return qf.queueFlags & VK_QUEUE_GRAPHICS_BIT; };
 
         // Check if all required queue families are supported
         auto queue_families = vulkan_utils::query_queue_families(dev);
-        if (std::none_of(queue_families.begin(), queue_families.end(), has_graphics_queue_family)) return true;
+        if (std::none_of(queue_families.begin(), queue_families.end(), has_graphics_queue_family)) return false;
 
-        return false;
+        // needs presentation support
+        VkBool32 supported = VK_FALSE;
+        for (auto it = queue_families.begin(); it != queue_families.end(); ++it) {
+            vkGetPhysicalDeviceSurfaceSupportKHR(dev, std::distance(queue_families.begin(), it), surface, &supported);
+            if (supported) break;
+        }
+        if (!supported) return false;
+
+        return true;
     }
 
     int vulkan_device::default_selection_strategy::score_device(VkPhysicalDevice dev) {
@@ -523,8 +535,8 @@ namespace bbge {
 
     const vulkan_device::default_selection_strategy vulkan_device::selection_default { };
 
-    vulkan_device::vulkan_device(VkInstance inst, VkPhysicalDevice dev)
-      : m_instance(inst), m_physical_device(dev), m_device(), m_queue_handles() {
+    vulkan_device::vulkan_device(VkInstance inst, VkSurfaceKHR surface, VkPhysicalDevice dev)
+      : m_instance(inst), m_surface(surface), m_physical_device(dev), m_device(), m_queue_handles() {
 
         const auto [device, q_fam_indices] = create_device();
         m_device = device;
@@ -537,7 +549,8 @@ namespace bbge {
 
         queue_family_indices q_fam_indices = get_required_queue_family_indices();
         std::set<uint32_t> queue_family_index_set {
-            q_fam_indices.graphics
+            q_fam_indices.graphics,
+            q_fam_indices.presentation
         };
         std::vector<VkDeviceQueueCreateInfo> q_create_infos;
         q_create_infos.reserve(queue_family_index_set.size());
@@ -593,9 +606,21 @@ namespace bbge {
         queue_family_indices family_indices { };
         auto queue_families = vulkan_utils::query_queue_families(m_physical_device);
 
+        // graphics family
         auto graphics_it = std::find_if(queue_families.begin(), queue_families.end(), has_graphics_queue_family);
         if (graphics_it == queue_families.end()) throw std::logic_error("The device selection strategy selected an unsuitable device.");
         family_indices.graphics = std::distance(queue_families.begin(), graphics_it);
+
+        // presentation family
+        for (auto it = queue_families.begin(); it != queue_families.end(); ++it) {
+            VkBool32 supported = VK_FALSE;
+            auto idx = std::distance(queue_families.begin(), it);
+            vkGetPhysicalDeviceSurfaceSupportKHR(m_physical_device, idx, m_surface, &supported);
+            if (supported) {
+                family_indices.presentation = idx;
+                break;
+            }
+        }
 
         return family_indices;
     }
@@ -643,6 +668,22 @@ namespace bbge {
     vulkan_device::get_queue_handles(const vulkan_device::queue_family_indices& indices) const {
         queue_handles handles { };
         vkGetDeviceQueue(m_device, indices.graphics, 0, &handles.graphics);
+        vkGetDeviceQueue(m_device, indices.presentation, 0, &handles.presentation);
         return handles;
+    }
+
+    vulkan_surface::~vulkan_surface() {
+        if (m_surface) {
+            vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
+            SPDLOG_TRACE("Destroyed Vulkan surface.");
+        }
+    }
+
+    vulkan_surface::vulkan_surface(VkInstance instance, const glfw_window& win)
+      : m_instance(instance), m_surface(VK_NULL_HANDLE) {
+        auto res = glfwCreateWindowSurface(instance, win.get_handle(), nullptr, &m_surface);
+        if (res != VkResult::VK_SUCCESS) {
+            throw vulkan_error("Failed to create window surface", res);
+        }
     }
 }

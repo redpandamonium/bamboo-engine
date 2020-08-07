@@ -40,4 +40,8 @@ namespace bbge {
             SPDLOG_TRACE("Closed window '{}'.", m_title);
         }
     }
+
+    GLFWwindow* glfw_window::get_handle() const noexcept {
+        return m_handle;
+    }
 }

@@ -170,7 +170,7 @@ namespace bbge {
          */
         struct selection_strategy {
             virtual ~selection_strategy() = default;
-            [[nodiscard]] virtual result<VkPhysicalDevice, std::runtime_error> select(VkInstance instance) const = 0;
+            [[nodiscard]] virtual result<VkPhysicalDevice, std::runtime_error> select(VkInstance instance, VkSurfaceKHR surface) const = 0;
         };
 
         /**
@@ -179,30 +179,31 @@ namespace bbge {
         class default_selection_strategy final : public selection_strategy {
         public:
 
-            [[nodiscard]] result<VkPhysicalDevice, std::runtime_error> select(VkInstance instance) const override;
+            [[nodiscard]] result<VkPhysicalDevice, std::runtime_error> select(VkInstance instance, VkSurfaceKHR surface) const override;
 
         private:
 
-            [[nodiscard]] static bool is_device_unsuitable(VkPhysicalDevice dev);
+            [[nodiscard]] static bool is_device_suitable(VkSurfaceKHR surface, VkPhysicalDevice dev);
             [[nodiscard]] static int score_device(VkPhysicalDevice dev);
         };
 
         struct queue_handles {
             VkQueue graphics;
+            VkQueue presentation;
         };
 
         /**
          * @brief Create a vulkan device. Let the implementation pick a device.
          * @param inst Valid instance
          */
-        explicit vulkan_device(VkInstance inst, const selection_strategy& strategy = selection_default);
+        explicit vulkan_device(VkInstance inst, VkSurfaceKHR surface, const selection_strategy& strategy = selection_default);
 
         /**
          * @brief Create a vulkan device. Use the provided device.
          * @param inst Valid instance
          * @param dev Device to use
          */
-        vulkan_device(VkInstance inst, VkPhysicalDevice dev);
+        vulkan_device(VkInstance inst, VkSurfaceKHR surface, VkPhysicalDevice dev);
 
         ~vulkan_device();
 
@@ -224,6 +225,7 @@ namespace bbge {
 
         struct queue_family_indices {
             uint32_t graphics;
+            uint32_t presentation;
         };
 
         static constexpr const char* validation_layers[] = {
@@ -238,6 +240,7 @@ namespace bbge {
         static constexpr const float default_queue_priority = 1.0f;
 
         VkInstance m_instance;
+        VkSurfaceKHR m_surface;
         VkPhysicalDevice m_physical_device;
         VkDevice m_device;
         queue_handles m_queue_handles;
@@ -250,6 +253,19 @@ namespace bbge {
         // logging
         void log_available_physical_devices() const;
         void log_selected_physical_device() const;
+    };
+
+    class vulkan_surface {
+    public:
+
+        vulkan_surface(VkInstance instance, const glfw_window& win);
+
+        ~vulkan_surface();
+
+    private:
+
+        VkInstance m_instance;
+        VkSurfaceKHR m_surface;
     };
 }
 
