@@ -388,6 +388,26 @@ namespace bbge {
         }
     }
 
+    std::vector<VkExtensionProperties> vulkan_utils::query_available_device_extensions(VkPhysicalDevice dev) {
+
+        uint32_t count = 0;
+        auto res = vkEnumerateDeviceExtensionProperties(dev, nullptr, &count, nullptr);
+        if (res != VkResult::VK_SUCCESS) {
+            VkPhysicalDeviceProperties props;
+            vkGetPhysicalDeviceProperties(dev, &props);
+            throw vulkan_error(fmt::format("Failed to query device extensions for '{}'", props.deviceName), res);
+        }
+        std::vector<VkExtensionProperties> exts(count);
+        res = vkEnumerateDeviceExtensionProperties(dev, nullptr, &count, exts.data());
+        if (res != VkResult::VK_SUCCESS) {
+            VkPhysicalDeviceProperties props;
+            vkGetPhysicalDeviceProperties(dev, &props);
+            throw vulkan_error(fmt::format("Failed to query device extensions for '{}'", props.deviceName), res);
+        }
+
+        return exts;
+    }
+
     vulkan_error::vulkan_error(const std::string& msg, VkResult res)
         : std::runtime_error(fmt::format("[vulkan] {} (err={}).", msg, vulkan_utils::to_string(res))) {
 
@@ -513,6 +533,16 @@ namespace bbge {
         }
         if (!supported) return false;
 
+        // needs to support all required extensions
+        auto extensions = vulkan_utils::query_available_device_extensions(dev);
+        for (const char* required : required_extensions) {
+            auto it = std::find_if(extensions.begin(), extensions.end(),
+                [required](const VkExtensionProperties& props) { return std::strcmp(required, props.extensionName) == 0; });
+            if (it == extensions.end()) {
+                return false;
+            }
+        }
+
         return true;
     }
 
@@ -573,6 +603,7 @@ namespace bbge {
         #endif
 
         auto extensions = get_extensions();
+        log_device_extensions(extensions);
 
         VkPhysicalDeviceFeatures features { };
 
@@ -625,9 +656,23 @@ namespace bbge {
         return family_indices;
     }
 
-    std::vector<const char*> vulkan_device::get_extensions() {
-        // TODO: implement
-        return {};
+    std::vector<const char*> vulkan_device::get_extensions() const {
+
+        // in debug mode we double check the selection strategy's selection
+        #ifndef NDEBUG
+            auto extensions = vulkan_utils::query_available_device_extensions(m_physical_device);
+            for (const char* required : required_extensions) {
+                auto it = std::find_if(extensions.begin(), extensions.end(),
+                                       [required](const VkExtensionProperties& props) { return std::strcmp(required, props.extensionName) == 0; });
+                if (it == extensions.end()) {
+                    throw std::logic_error("The device selection strategy selected an unsuitable device. Not all required extensions are supported.");
+                }
+            }
+        #endif
+
+        std::vector<const char*> exts(sizeof(required_extensions));
+        std::copy(required_extensions, required_extensions + sizeof(required_extensions), exts.begin());
+        return exts;
     }
 
     void vulkan_device::log_available_physical_devices() const {
@@ -672,6 +717,15 @@ namespace bbge {
         return handles;
     }
 
+    void vulkan_device::log_device_extensions(const std::vector<const char*>& exts) const {
+        if (!exts.empty()) {
+            SPDLOG_TRACE("Using the following Vulkan device extensions: ");
+            for (auto extension : exts) {
+                SPDLOG_TRACE("+ {}", extension);
+            }
+        }
+    }
+
     vulkan_surface::~vulkan_surface() {
         if (m_surface) {
             vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
@@ -685,5 +739,10 @@ namespace bbge {
         if (res != VkResult::VK_SUCCESS) {
             throw vulkan_error("Failed to create window surface", res);
         }
+        SPDLOG_TRACE("Created Vulkan surface.");
+    }
+
+    VkSurfaceKHR vulkan_surface::get_handle() const noexcept {
+        return m_surface;
     }
 }

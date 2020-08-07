@@ -48,6 +48,7 @@ namespace bbge {
         [[nodiscard]] static std::vector<VkQueueFamilyProperties> query_queue_families(VkPhysicalDevice dev);
         [[nodiscard]] static std::vector<VkPhysicalDevice> query_physical_devices(VkInstance inst);
         [[nodiscard]] static std::vector<const char*> query_available_validation_layers();
+        [[nodiscard]] static std::vector<VkExtensionProperties> query_available_device_extensions(VkPhysicalDevice dev);
 
     private:
 
@@ -224,8 +225,8 @@ namespace bbge {
     private:
 
         struct queue_family_indices {
-            uint32_t graphics;
-            uint32_t presentation;
+            uint32_t graphics = std::numeric_limits<uint32_t>::max(); // the high value makes API calls fail if not assigned
+            uint32_t presentation = std::numeric_limits<uint32_t>::max();
         };
 
         static constexpr const char* validation_layers[] = {
@@ -234,6 +235,10 @@ namespace bbge {
             "VK_LAYER_LUNARG_core_validation",
             "VK_LAYER_LUNARG_parameter_validation",
             "VK_LAYER_LUNARG_object_tracker"
+        };
+
+        static constexpr const char* required_extensions[] = {
+            VK_KHR_SWAPCHAIN_EXTENSION_NAME
         };
 
         static const default_selection_strategy selection_default;
@@ -247,20 +252,32 @@ namespace bbge {
 
         [[nodiscard]] std::pair<VkDevice, queue_family_indices> create_device() const;
         [[nodiscard]] queue_family_indices get_required_queue_family_indices() const;
-        [[nodiscard]] static std::vector<const char*> get_extensions();
+        [[nodiscard]] std::vector<const char*> get_extensions() const;
         [[nodiscard]] queue_handles get_queue_handles(const queue_family_indices& indices) const;
 
         // logging
         void log_available_physical_devices() const;
         void log_selected_physical_device() const;
+        void log_device_extensions(const std::vector<const char*>& exts) const;
     };
 
     class vulkan_surface {
     public:
 
+        /**
+         * Create a new vulkan surface for a GLFW window.
+         * @param instance Vulkan instance
+         * @param win Window
+         */
         vulkan_surface(VkInstance instance, const glfw_window& win);
 
         ~vulkan_surface();
+
+        /**
+         * Get the surface handle
+         * @return Surface handle
+         */
+        [[nodiscard]] VkSurfaceKHR get_handle() const noexcept;
 
     private:
 

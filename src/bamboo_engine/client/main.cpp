@@ -53,7 +53,8 @@ int main(int argc, char** argv) {
         );
         vulkan_instance vk_instance("Test", version { 0, 1, 1 });
         vulkan_debug_messenger vk_debug(vk_instance.get_handle());
-        vulkan_device vk_device(vk_instance.get_handle());
+        vulkan_surface vk_surface(vk_instance.get_handle(), dynamic_cast<glfw_window&>(*win));
+        vulkan_device vk_device(vk_instance.get_handle(), vk_surface.get_handle());
 
         std::this_thread::sleep_for(std::chrono::seconds(5));
     }
