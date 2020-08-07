@@ -18,7 +18,7 @@
 //
 
 #include "glfw.hpp"
-#include <glfw/glfw3.h>
+#include <GLFW/glfw3.h>
 #include "../util/logging.hpp"
 
 namespace bbge {

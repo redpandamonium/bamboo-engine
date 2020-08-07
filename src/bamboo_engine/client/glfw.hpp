@@ -22,6 +22,7 @@
 
 #include "../util/version.hpp"
 #include "../util/macros.hpp"
+#include <stdexcept>
 
 namespace bbge {
 

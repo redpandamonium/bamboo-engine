@@ -20,13 +20,15 @@
 #ifndef BAMBOOENGINE_VULKAN_HPP
 #define BAMBOOENGINE_VULKAN_HPP
 
-#include <vulkan/vulkan.h>
 #include <string>
 #include <unordered_map>
+#include <vector>
+#include <set>
+#include <stdexcept>
+#include <vulkan/vulkan.h>
+#include <cmake_config.hpp>
 #include "../util/version.hpp"
 #include "../client/window.hpp"
-#include <cmake_config.hpp>
-#include <set>
 #include "../util/macros.hpp"
 #include "../util/result.hpp"
 
