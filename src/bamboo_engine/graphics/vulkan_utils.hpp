@@ -39,6 +39,7 @@ namespace bbge {
 
         // Stringify
         static std::string_view to_string(VkResult res);
+        static std::string_view to_string(VkFormat format);
         [[nodiscard]] static const char* convert_device_type(VkPhysicalDeviceType t);
         [[nodiscard]] static const char* convert_severity(VkDebugUtilsMessageSeverityFlagBitsEXT sev);
         [[nodiscard]] static const char* convert_type(VkDebugUtilsMessageTypeFlagsEXT typ);
@@ -69,6 +70,7 @@ namespace bbge {
         };
 
         static const tsl::robin_map<VkResult, std::string> result_names;
+        static const tsl::robin_map<VkFormat, std::string> format_names;
         static const std::string_view invalid_name;
     };
 }
