@@ -456,9 +456,12 @@ namespace bbge {
     }
 
     vulkan_device::vulkan_device(VkInstance inst, const selection_strategy& strat)
-      : m_instance(inst), m_physical_device(strat.select(inst).or_throw()), m_device(create_device()) {
+      : m_instance(inst), m_physical_device(strat.select(inst).or_throw()), m_device(), m_queue_handles() {
 
         log_available_physical_devices();
+        auto [device, indices] = create_device();
+        m_device = device;
+        m_queue_handles = get_queue_handles(indices);
     }
 
     result<VkPhysicalDevice, std::runtime_error> vulkan_device::default_selection_strategy::select(VkInstance instance) const {
@@ -521,19 +524,25 @@ namespace bbge {
     const vulkan_device::default_selection_strategy vulkan_device::selection_default { };
 
     vulkan_device::vulkan_device(VkInstance inst, VkPhysicalDevice dev)
-      : m_instance(inst), m_physical_device(dev), m_device(create_device()) {
+      : m_instance(inst), m_physical_device(dev), m_device(), m_queue_handles() {
 
+        const auto [device, q_fam_indices] = create_device();
+        m_device = device;
+        m_queue_handles = get_queue_handles(q_fam_indices);
     }
 
-    VkDevice vulkan_device::create_device() const {
+    std::pair<VkDevice, vulkan_device::queue_family_indices> vulkan_device::create_device() const {
 
         log_selected_physical_device();
 
-        std::set<uint32_t> queue_family_indices = get_required_queue_family_indices();
+        queue_family_indices q_fam_indices = get_required_queue_family_indices();
+        std::set<uint32_t> queue_family_index_set {
+            q_fam_indices.graphics
+        };
         std::vector<VkDeviceQueueCreateInfo> q_create_infos;
-        q_create_infos.reserve(queue_family_indices.size());
+        q_create_infos.reserve(queue_family_index_set.size());
 
-        for (auto idx : queue_family_indices) {
+        for (auto idx : queue_family_index_set) {
             VkDeviceQueueCreateInfo create { };
             create.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
             create.pQueuePriorities = &default_queue_priority;
@@ -572,21 +581,21 @@ namespace bbge {
 
         SPDLOG_TRACE("Created logical Vulkan device.");
 
-        return dev;
+        return { dev, q_fam_indices };
     }
 
-    std::set<uint32_t> vulkan_device::get_required_queue_family_indices() const {
+    vulkan_device::queue_family_indices vulkan_device::get_required_queue_family_indices() const {
 
         const auto has_graphics_queue_family = [] (const VkQueueFamilyProperties& qf) {
             return qf.queueFlags & VK_QUEUE_GRAPHICS_BIT;
         };
 
-        std::set<uint32_t> family_indices;
+        queue_family_indices family_indices { };
         auto queue_families = vulkan_utils::query_queue_families(m_physical_device);
 
         auto graphics_it = std::find_if(queue_families.begin(), queue_families.end(), has_graphics_queue_family);
         if (graphics_it == queue_families.end()) throw std::logic_error("The device selection strategy selected an unsuitable device.");
-        family_indices.insert(std::distance(queue_families.begin(), graphics_it));
+        family_indices.graphics = std::distance(queue_families.begin(), graphics_it);
 
         return family_indices;
     }
@@ -604,7 +613,7 @@ namespace bbge {
             VkPhysicalDeviceProperties properties;
             vkGetPhysicalDeviceProperties(device, &properties);
 
-            SPDLOG_DEBUG("+ [{}] '{}' with driver version {}.",
+            SPDLOG_TRACE("+ [{}] '{}' with driver version {}.",
                          vulkan_utils::convert_device_type(properties.deviceType),
                          properties.deviceName,
                          properties.driverVersion);
@@ -620,5 +629,20 @@ namespace bbge {
             vulkan_utils::convert_device_type(properties.deviceType),
             properties.deviceName,
             properties.driverVersion);
+    }
+
+    VkDevice vulkan_device::get_handle() const noexcept {
+        return m_device;
+    }
+
+    const vulkan_device::queue_handles& vulkan_device::get_queues() const noexcept {
+        return m_queue_handles;
+    }
+
+    vulkan_device::queue_handles
+    vulkan_device::get_queue_handles(const vulkan_device::queue_family_indices& indices) const {
+        queue_handles handles { };
+        vkGetDeviceQueue(m_device, indices.graphics, 0, &handles.graphics);
+        return handles;
     }
 }

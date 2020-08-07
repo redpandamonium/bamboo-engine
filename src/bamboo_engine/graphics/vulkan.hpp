@@ -185,6 +185,10 @@ namespace bbge {
             [[nodiscard]] static int score_device(VkPhysicalDevice dev);
         };
 
+        struct queue_handles {
+            VkQueue graphics;
+        };
+
         /**
          * @brief Create a vulkan device. Let the implementation pick a device.
          * @param inst Valid instance
@@ -202,7 +206,23 @@ namespace bbge {
 
         BBGE_NO_COPIES(vulkan_device);
 
+        /**
+         * @brief Get the device handle
+         * @return Device handle
+         */
+        [[nodiscard]] VkDevice get_handle() const noexcept;
+
+        /**
+         * @brief Get the queue handles of this device.
+         * @return Queue handles
+         */
+        [[nodiscard]] const queue_handles& get_queues() const noexcept;
+
     private:
+
+        struct queue_family_indices {
+            uint32_t graphics;
+        };
 
         static constexpr const char* validation_layers[] = {
             "VK_LAYER_KHRONOS_validation",
@@ -218,11 +238,14 @@ namespace bbge {
         VkInstance m_instance;
         VkPhysicalDevice m_physical_device;
         VkDevice m_device;
+        queue_handles m_queue_handles;
 
-        [[nodiscard]] VkDevice create_device() const;
-        [[nodiscard]] std::set<uint32_t> get_required_queue_family_indices() const;
+        [[nodiscard]] std::pair<VkDevice, queue_family_indices> create_device() const;
+        [[nodiscard]] queue_family_indices get_required_queue_family_indices() const;
         [[nodiscard]] static std::vector<const char*> get_extensions();
+        [[nodiscard]] queue_handles get_queue_handles(const queue_family_indices& indices) const;
 
+        // logging
         void log_available_physical_devices() const;
         void log_selected_physical_device() const;
     };
