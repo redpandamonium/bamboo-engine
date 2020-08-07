@@ -146,6 +146,8 @@ namespace bbge {
             const std::experimental::source_location& loc = std::experimental::source_location::current()
         );
 
+        [[nodiscard]] bool operator!() const;
+
     private:
 
         // Consider doing something more performant. Some compilers really struggle with variant.
@@ -245,6 +247,11 @@ namespace bbge {
             spdlog::log(src_loc, l, err()->what());
         }
         return *this;
+    }
+
+    template <typename Result, typename Error>
+    bool result<Result, Error>::operator!() const {
+        return is_err();
     }
 
     template <typename Result, typename Error>
