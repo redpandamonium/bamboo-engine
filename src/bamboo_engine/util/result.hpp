@@ -133,10 +133,18 @@ namespace bbge {
         /**
          * @brief If this is err then log it.
          */
-        result<ok_type, err_type>& log_err(
+        const result<ok_type, err_type>& log_err(
             spdlog::level::level_enum l = spdlog::level::err,
             const std::experimental::source_location& loc = std::experimental::source_location::current()
         ) const;
+
+        /**
+         * @brief If this is err then log it.
+         */
+        result<ok_type, err_type>& log_err(
+            spdlog::level::level_enum l = spdlog::level::err,
+            const std::experimental::source_location& loc = std::experimental::source_location::current()
+        );
 
     private:
 
@@ -220,12 +228,23 @@ namespace bbge {
     }
 
     template <typename Result, typename Error>
-    result<typename result<Result, Error>::ok_type, typename result<Result, Error>::err_type>&
+    const result<typename result<Result, Error>::ok_type, typename result<Result, Error>::err_type>&
     result<Result, Error>::log_err(spdlog::level::level_enum l, const std::experimental::source_location& loc) const {
         if (is_err()) {
             auto src_loc = spdlog::source_loc(loc.file_name(), loc.line(), loc.function_name());
             spdlog::log(src_loc, l, err()->what());
         }
+        return *this;
+    }
+
+    template <typename Result, typename Error>
+    result<typename result<Result, Error>::ok_type, typename result<Result, Error>::err_type>&
+    result<Result, Error>::log_err(spdlog::level::level_enum l, const std::experimental::source_location& loc) {
+        if (is_err()) {
+            auto src_loc = spdlog::source_loc(loc.file_name(), loc.line(), loc.function_name());
+            spdlog::log(src_loc, l, err()->what());
+        }
+        return *this;
     }
 
     template <typename Result, typename Error>
