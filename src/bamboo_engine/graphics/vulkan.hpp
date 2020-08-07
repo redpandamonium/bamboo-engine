@@ -34,34 +34,8 @@
 
 namespace bbge {
 
-    struct vulkan_utils {
-    public:
-
-        static int make_version(const version& v);
-        static std::string_view to_string(VkResult res);
-        [[nodiscard]] static const char* convert_device_type(VkPhysicalDeviceType t);
-        [[nodiscard]] static const char* convert_severity(VkDebugUtilsMessageSeverityFlagBitsEXT sev);
-        [[nodiscard]] static const char* convert_type(VkDebugUtilsMessageTypeFlagsEXT typ);
-        [[nodiscard]] static VkDebugUtilsMessengerCreateInfoEXT make_debug_messenger_all_messages() noexcept;
-        [[nodiscard]] static std::vector<VkExtensionProperties> query_available_instance_extensions();
-        [[nodiscard]] static std::vector<VkLayerProperties> query_available_layers();
-        [[nodiscard]] static std::vector<VkQueueFamilyProperties> query_queue_families(VkPhysicalDevice dev);
-        [[nodiscard]] static std::vector<VkPhysicalDevice> query_physical_devices(VkInstance inst);
-        [[nodiscard]] static std::vector<const char*> query_available_validation_layers();
-        [[nodiscard]] static std::vector<VkExtensionProperties> query_available_device_extensions(VkPhysicalDevice dev);
-
-    private:
-
-        static constexpr const char* validation_layers[] = {
-            "VK_LAYER_KHRONOS_validation",
-            "VK_LAYER_LUNARG_standard_validation",
-            "VK_LAYER_LUNARG_core_validation",
-            "VK_LAYER_LUNARG_parameter_validation",
-            "VK_LAYER_LUNARG_object_tracker"
-        };
-
-        static const std::unordered_map<VkResult, std::string> result_names;
-        static const std::string_view invalid_name;
+    struct vulkan_error : public std::runtime_error {
+        vulkan_error(const std::string& msg, VkResult res);
     };
 
     /**
@@ -95,10 +69,6 @@ namespace bbge {
 
         PFN_vkCreateDebugUtilsMessengerEXT m_vkCreateDebugUtilsMessengerEXT;
         PFN_vkDestroyDebugUtilsMessengerEXT m_vkDestroyDebugUtilsMessengerEXT;
-    };
-
-    struct vulkan_error : public std::runtime_error {
-        vulkan_error(const std::string& msg, VkResult res);
     };
 
     class vulkan_instance {
@@ -186,6 +156,7 @@ namespace bbge {
 
             [[nodiscard]] static bool is_device_suitable(VkSurfaceKHR surface, VkPhysicalDevice dev);
             [[nodiscard]] static int score_device(VkPhysicalDevice dev);
+            [[nodiscard]] static bool check_device_swap_chain_support(VkSurfaceKHR surface, VkPhysicalDevice dev);
         };
 
         struct queue_handles {
@@ -283,6 +254,16 @@ namespace bbge {
 
         VkInstance m_instance;
         VkSurfaceKHR m_surface;
+    };
+
+    class vulkan_swap_chain {
+    public:
+
+        vulkan_swap_chain(VkInstance instance, VkDevice device, VkSurfaceKHR surface);
+
+    private:
+
+
     };
 }
 

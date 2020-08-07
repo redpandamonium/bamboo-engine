@@ -290,4 +290,24 @@ namespace bbge {
         }
         return capabilities;
     }
+
+    result<std::vector<VkExtensionProperties>, vulkan_error>
+    vulkan_utils::query_available_device_extensions(VkPhysicalDevice dev) {
+
+        uint32_t count = 0;
+        auto res = vkEnumerateDeviceExtensionProperties(dev, nullptr, &count, nullptr);
+        if (res != VkResult::VK_SUCCESS) {
+            VkPhysicalDeviceProperties props;
+            vkGetPhysicalDeviceProperties(dev, &props);
+            return vulkan_error(fmt::format("Failed to query supported extensions for '{}'", props.deviceName), res);
+        }
+        std::vector<VkExtensionProperties> exts(count);
+        res = vkEnumerateDeviceExtensionProperties(dev, nullptr, &count, exts.data());
+        if (res != VkResult::VK_SUCCESS) {
+            VkPhysicalDeviceProperties props;
+            vkGetPhysicalDeviceProperties(dev, &props);
+            return vulkan_error(fmt::format("Failed to query supported extensions for '{}'", props.deviceName), res);
+        }
+        return exts;
+    }
 }
