@@ -48,6 +48,7 @@ namespace bbge {
         // Common defaults
         [[nodiscard]] static VkDebugUtilsMessengerCreateInfoEXT make_debug_messenger_all_messages() noexcept;
         [[nodiscard]] static std::vector<const char*>           get_validation_layers();
+        [[nodiscard]] static VkComponentMapping                 make_identity_component_mapping() noexcept;
 
         // Property queries
         [[nodiscard]] static result<std::vector<VkExtensionProperties>, vulkan_error>   query_available_instance_extensions();

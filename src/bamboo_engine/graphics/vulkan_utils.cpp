@@ -598,4 +598,13 @@ namespace bbge {
 
         return images;
     }
+
+    VkComponentMapping vulkan_utils::make_identity_component_mapping() noexcept {
+        return VkComponentMapping {
+            VK_COMPONENT_SWIZZLE_IDENTITY,
+            VK_COMPONENT_SWIZZLE_IDENTITY,
+            VK_COMPONENT_SWIZZLE_IDENTITY,
+            VK_COMPONENT_SWIZZLE_IDENTITY
+        };
+    }
 }
