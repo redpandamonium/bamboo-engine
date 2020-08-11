@@ -302,8 +302,10 @@ namespace bbge {
     private:
 
         VkDevice m_device;
+        VkSurfaceFormatKHR m_format;
         VkSwapchainKHR m_handle;
         std::vector<VkImage> m_images;
+        std::vector<VkImageView> m_image_views;
 
         struct queue_settings {
             VkSharingMode image_sharing_mode;
@@ -314,6 +316,7 @@ namespace bbge {
         [[nodiscard]] static VkPresentModeKHR pick_present_mode(VkPhysicalDevice device, VkSurfaceKHR surface);
         [[nodiscard]] static VkExtent2D pick_swap_extent(VkPhysicalDevice device, VkSurfaceKHR surface, GLFWwindow* win);
         [[nodiscard]] static queue_settings pick_queue_settings(const vulkan_queue_family_indices& q_fam_indices);
+        [[nodiscard]] std::vector<VkImageView> create_image_views() const;
     };
 }
 

@@ -592,7 +592,7 @@ namespace bbge {
         VkPhysicalDevice physical_device, VkDevice device,
         VkSurfaceKHR surface, const glfw_window& window,
         const vulkan_queue_family_indices& q_fam_indices)
-      : m_device(device), m_handle(VK_NULL_HANDLE) {
+      : m_device(device), m_handle(VK_NULL_HANDLE), m_image_views() {
 
         auto capabilities = vulkan_utils::query_surface_capabilities(physical_device, surface).or_throw();
 
@@ -615,9 +615,9 @@ namespace bbge {
         create_info.presentMode = present_mode;
 
         // surface format
-        auto format = pick_surface_format(physical_device, surface);
-        create_info.imageFormat = format.format;
-        create_info.imageColorSpace = format.colorSpace;
+        m_format = pick_surface_format(physical_device, surface);
+        create_info.imageFormat = m_format.format;
+        create_info.imageColorSpace = m_format.colorSpace;
 
         // extent (surface size)
         auto extent = pick_swap_extent(physical_device, surface, window.get_handle());
@@ -638,6 +638,7 @@ namespace bbge {
         SPDLOG_TRACE("Created Vulkan swap chain.");
 
         m_images = std::move(vulkan_utils::query_swapchain_images(m_device, m_handle).or_throw());
+
     }
 
     VkSurfaceFormatKHR vulkan_swap_chain::pick_surface_format(VkPhysicalDevice device, VkSurfaceKHR surface) {
@@ -699,6 +700,9 @@ namespace bbge {
             vkDestroySwapchainKHR(m_device, m_handle, nullptr);
             SPDLOG_TRACE("Destroyed Vulkan swap chain.");
         }
+        for (auto view : m_image_views) {
+            vkDestroyImageView(m_device, view, nullptr);
+        }
     }
 
     vulkan_swap_chain::queue_settings
@@ -726,5 +730,37 @@ namespace bbge {
 
     const std::vector<VkImage>& vulkan_swap_chain::get_images() const noexcept {
         return m_images;
+    }
+
+    std::vector<VkImageView> vulkan_swap_chain::create_image_views() const {
+
+        std::vector<VkImageView> views;
+        views.reserve(m_images.size());
+
+        for (auto img : m_images) {
+
+            VkImageViewCreateInfo create_info { };
+            create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+            create_info.image = img;
+            create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+            create_info.format = m_format.format;
+            create_info.components = vulkan_utils::make_identity_component_mapping();
+
+            // color buffer target with no mipmapping
+            create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            create_info.subresourceRange.baseMipLevel = 0;
+            create_info.subresourceRange.levelCount = 1;
+            create_info.subresourceRange.baseArrayLayer = 0;
+            create_info.subresourceRange.layerCount = 1;
+
+            VkImageView view;
+            auto res = vkCreateImageView(m_device, &create_info, nullptr, &view);
+            if (res != VkResult::VK_SUCCESS) {
+                throw vulkan_error("Failed to create image view", res);
+            }
+            views.push_back(view);
+        }
+
+        return views;
     }
 }
