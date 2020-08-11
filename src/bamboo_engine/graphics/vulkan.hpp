@@ -280,7 +280,6 @@ namespace bbge {
     public:
 
         vulkan_swap_chain(
-            VkInstance instance,
             VkPhysicalDevice physical_device, VkDevice device,
             VkSurfaceKHR surface, const glfw_window& window,
             const vulkan_queue_family_indices& q_fam_indices);

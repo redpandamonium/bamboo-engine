@@ -57,7 +57,6 @@ int main(int argc, char** argv) {
         vulkan_surface          vk_surface(vk_instance.get_handle(), dynamic_cast<glfw_window&>(*win));
         vulkan_device           vk_device(vk_instance.get_handle(), vk_surface.get_handle());
         vulkan_swap_chain       vk_swapchain(
-            vk_instance.get_handle(),
             vk_device.get_physical_device(), vk_device.get_handle(),
             vk_surface.get_handle(), dynamic_cast<glfw_window&>(*win),
             vk_device.get_queue_family_indices()
