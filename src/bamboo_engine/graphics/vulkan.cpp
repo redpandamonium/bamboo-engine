@@ -552,9 +552,9 @@ namespace bbge {
 
     void vulkan_device::log_device_extensions(const std::vector<const char*>& exts) const {
         if (!exts.empty()) {
-            SPDLOG_TRACE("Using the following Vulkan device extensions: ");
+            SPDLOG_DEBUG("Using the following Vulkan device extensions: ");
             for (auto extension : exts) {
-                SPDLOG_TRACE("+ {}", extension);
+                SPDLOG_DEBUG("+ {}", extension);
             }
         }
     }
@@ -706,13 +706,13 @@ namespace bbge {
 
     vulkan_swap_chain::queue_settings
     vulkan_swap_chain::pick_queue_settings(const vulkan_queue_family_indices& q_fam_indices) {
-        std::set<uint32_t> indices = { q_fam_indices.presentation, q_fam_indices.graphics };
 
-        // if two queue families share the same physical queue we need to enable synchronization
-        if (indices.size() < 2) {
+        // Graphics and presentation queues work on the same resource,
+        // so they need synchronization if they're not the same family.
+        if (q_fam_indices.presentation != q_fam_indices.graphics) {
             return queue_settings {
                 VK_SHARING_MODE_CONCURRENT,
-                { indices.begin(), indices.end() }
+                { q_fam_indices.graphics, q_fam_indices.presentation }
             };
         }
 
