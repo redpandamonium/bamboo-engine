@@ -489,18 +489,18 @@ namespace bbge {
 
         // in debug mode we double check the selection strategy's selection
         #ifndef NDEBUG
-            auto extensions = vulkan_utils::query_available_device_extensions(m_physical_device);
+            auto extensions = vulkan_utils::query_available_device_extensions(m_physical_device).or_throw();
             for (const char* required : required_extensions) {
-                auto it = std::find_if(extensions.or_throw().begin(), extensions.or_throw().end(),
+                auto it = std::find_if(extensions.begin(), extensions.end(),
                                        [required](const VkExtensionProperties& props) { return std::strcmp(required, props.extensionName) == 0; });
-                if (it == extensions.or_throw().end()) {
+                if (it == extensions.end()) {
                     throw std::logic_error("The device selection strategy selected an unsuitable device. Not all required extensions are supported.");
                 }
             }
         #endif
 
-        std::vector<const char*> exts(sizeof(required_extensions));
-        std::copy(required_extensions, required_extensions + sizeof(required_extensions), exts.begin());
+        std::vector<const char*> exts(std::size(required_extensions));
+        std::copy(required_extensions, required_extensions + std::size(required_extensions), exts.begin());
         return exts;
     }
 
