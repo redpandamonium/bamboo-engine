@@ -51,10 +51,17 @@ int main(int argc, char** argv) {
         std::unique_ptr<window> win = std::make_unique<glfw_window>(
             "Bamboo Engine"s, window::position_center, glm::ivec2 { 1024, 720 }
         );
-        vulkan_instance vk_instance("Test", version { 0, 1, 1 });
-        vulkan_debug_messenger vk_debug(vk_instance.get_handle());
-        vulkan_surface vk_surface(vk_instance.get_handle(), dynamic_cast<glfw_window&>(*win));
-        vulkan_device vk_device(vk_instance.get_handle(), vk_surface.get_handle());
+
+        vulkan_instance         vk_instance("Test", version { 0, 1, 1 });
+        vulkan_debug_messenger  vk_debug(vk_instance.get_handle());
+        vulkan_surface          vk_surface(vk_instance.get_handle(), dynamic_cast<glfw_window&>(*win));
+        vulkan_device           vk_device(vk_instance.get_handle(), vk_surface.get_handle());
+        vulkan_swap_chain       vk_swapchain(
+            vk_instance.get_handle(),
+            vk_device.get_physical_device(), vk_device.get_handle(),
+            vk_surface.get_handle(), dynamic_cast<glfw_window&>(*win),
+            vk_device.get_queue_family_indices()
+        );
 
         std::this_thread::sleep_for(std::chrono::seconds(5));
     }
