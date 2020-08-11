@@ -374,6 +374,9 @@ namespace bbge {
     }
 
     std::string vulkan_utils::get_name(VkPhysicalDevice dev) {
+
+        assert(dev);
+
         VkPhysicalDeviceProperties props;
         vkGetPhysicalDeviceProperties(dev, &props);
         return props.deviceName;
@@ -443,6 +446,8 @@ namespace bbge {
     std::vector<VkQueueFamilyProperties>
     vulkan_utils::query_queue_families(VkPhysicalDevice dev) {
 
+        assert(dev);
+
         uint32_t count = 0;
         vkGetPhysicalDeviceQueueFamilyProperties(dev, &count, nullptr);
         std::vector<VkQueueFamilyProperties> props(count);
@@ -452,6 +457,8 @@ namespace bbge {
 
     result<std::vector<VkPhysicalDevice>, vulkan_error>
     vulkan_utils::query_physical_devices(VkInstance inst) {
+
+        assert(inst);
 
         uint32_t count = 0;
         auto res = vkEnumeratePhysicalDevices(inst, &count, nullptr);
@@ -490,6 +497,9 @@ namespace bbge {
     result<std::vector<VkSurfaceFormatKHR>, vulkan_error>
     vulkan_utils::query_surface_formats(VkPhysicalDevice dev, VkSurfaceKHR surface) {
 
+        assert(dev);
+        assert(surface);
+
         uint32_t count = 0;
         auto res = vkGetPhysicalDeviceSurfaceFormatsKHR(dev, surface, &count, nullptr);
         if (res != VkResult::VK_SUCCESS) {
@@ -511,6 +521,9 @@ namespace bbge {
     result<std::vector<VkPresentModeKHR>, vulkan_error>
     vulkan_utils::query_present_modes(VkPhysicalDevice dev, VkSurfaceKHR surface) {
 
+        assert(dev);
+        assert(surface);
+
         uint32_t count = 0;
         auto res = vkGetPhysicalDeviceSurfacePresentModesKHR(dev, surface, &count, nullptr);
         if (res != VkResult::VK_SUCCESS) {
@@ -531,6 +544,10 @@ namespace bbge {
 
     result<VkSurfaceCapabilitiesKHR, vulkan_error>
     vulkan_utils::query_surface_capabilities(VkPhysicalDevice dev, VkSurfaceKHR surface) {
+
+        assert(dev);
+        assert(surface);
+
         VkSurfaceCapabilitiesKHR capabilities;
         auto res = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(dev, surface, &capabilities);
         if (res != VkResult::VK_SUCCESS) {
@@ -543,6 +560,8 @@ namespace bbge {
 
     result<std::vector<VkExtensionProperties>, vulkan_error>
     vulkan_utils::query_available_device_extensions(VkPhysicalDevice dev) {
+
+        assert(dev);
 
         uint32_t count = 0;
         auto res = vkEnumerateDeviceExtensionProperties(dev, nullptr, &count, nullptr);
@@ -559,5 +578,24 @@ namespace bbge {
             return vulkan_error(fmt::format("Failed to query supported extensions for '{}'", props.deviceName), res);
         }
         return exts;
+    }
+
+    result<std::vector<VkImage>, vulkan_error> vulkan_utils::query_swapchain_images(VkDevice dev, VkSwapchainKHR swapchain) {
+
+        assert(dev);
+        assert(swapchain);
+
+        uint32_t count = 0;
+        auto res = vkGetSwapchainImagesKHR(dev, swapchain, &count, nullptr);
+        if (res != VkResult::VK_SUCCESS) {
+            return vulkan_error("Failed to query swap chain images", res);
+        }
+        std::vector<VkImage> images(count);
+        res = vkGetSwapchainImagesKHR(dev, swapchain, &count, images.data());
+        if (res != VkResult::VK_SUCCESS) {
+            return vulkan_error("Failed to query swap chain images", res);
+        }
+
+        return images;
     }
 }

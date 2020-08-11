@@ -58,6 +58,7 @@ namespace bbge {
         [[nodiscard]] static result<std::vector<VkSurfaceFormatKHR>, vulkan_error>      query_surface_formats(VkPhysicalDevice dev, VkSurfaceKHR surface);
         [[nodiscard]] static result<std::vector<VkPresentModeKHR>, vulkan_error>        query_present_modes(VkPhysicalDevice dev, VkSurfaceKHR surface);
         [[nodiscard]] static result<VkSurfaceCapabilitiesKHR, vulkan_error>             query_surface_capabilities(VkPhysicalDevice dev, VkSurfaceKHR surface);
+        [[nodiscard]] static result<std::vector<VkImage>, vulkan_error>                 query_swapchain_images(VkDevice dev, VkSwapchainKHR swapchain);
 
     private:
 
