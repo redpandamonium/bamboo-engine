@@ -144,7 +144,7 @@ namespace bbge {
         std::copy(exts, exts + num_exts, result.begin());
 
         // Check if they are available and throw if not
-        auto available = vulkan_utils::query_available_instance_extensions().or_throw();
+        auto available = std::move(vulkan_utils::query_available_instance_extensions().or_throw());
 
         for (const char* ext : result) {
             auto it = std::find_if(available.begin(), available.end(),
@@ -274,12 +274,14 @@ namespace bbge {
         m_queue_handles() {
 
         log_available_physical_devices();
-        auto [device, indices] = create_device();
+        auto [device, q_fam_indices] = create_device();
         m_device = device;
-        m_queue_handles = get_queue_handles(indices);
+        m_queue_family_indices = q_fam_indices;
+        m_queue_handles = get_queue_handles(q_fam_indices);
     }
 
-    result<VkPhysicalDevice, std::runtime_error> vulkan_device::default_selection_strategy::select(VkInstance instance, VkSurfaceKHR surface) const {
+    result<VkPhysicalDevice, std::runtime_error>
+    vulkan_device::default_selection_strategy::select(VkInstance instance, VkSurfaceKHR surface) const {
 
         // query devices
         auto devices_res = vulkan_utils::query_physical_devices(instance);
@@ -396,14 +398,15 @@ namespace bbge {
 
         const auto [device, q_fam_indices] = create_device();
         m_device = device;
+        m_queue_family_indices = q_fam_indices;
         m_queue_handles = get_queue_handles(q_fam_indices);
     }
 
-    std::pair<VkDevice, vulkan_device::queue_family_indices> vulkan_device::create_device() const {
+    std::pair<VkDevice, vulkan_queue_family_indices> vulkan_device::create_device() const {
 
         log_selected_physical_device();
 
-        queue_family_indices q_fam_indices = get_required_queue_family_indices();
+        vulkan_queue_family_indices q_fam_indices = get_required_queue_family_indices();
         std::set<uint32_t> queue_family_index_set {
             q_fam_indices.graphics,
             q_fam_indices.presentation
@@ -454,13 +457,13 @@ namespace bbge {
         return { dev, q_fam_indices };
     }
 
-    vulkan_device::queue_family_indices vulkan_device::get_required_queue_family_indices() const {
+    vulkan_queue_family_indices vulkan_device::get_required_queue_family_indices() const {
 
         const auto has_graphics_queue_family = [] (const VkQueueFamilyProperties& qf) {
             return qf.queueFlags & VK_QUEUE_GRAPHICS_BIT;
         };
 
-        queue_family_indices family_indices { };
+        vulkan_queue_family_indices family_indices { };
         auto queue_families = vulkan_utils::query_queue_families(m_physical_device);
 
         // graphics family
@@ -540,7 +543,7 @@ namespace bbge {
     }
 
     vulkan_device::queue_handles
-    vulkan_device::get_queue_handles(const vulkan_device::queue_family_indices& indices) const {
+    vulkan_device::get_queue_handles(const vulkan_queue_family_indices& indices) const {
         queue_handles handles { };
         vkGetDeviceQueue(m_device, indices.graphics, 0, &handles.graphics);
         vkGetDeviceQueue(m_device, indices.presentation, 0, &handles.presentation);
@@ -554,6 +557,14 @@ namespace bbge {
                 SPDLOG_TRACE("+ {}", extension);
             }
         }
+    }
+
+    VkPhysicalDevice vulkan_device::get_physical_device() const noexcept {
+        return m_physical_device;
+    }
+
+    const vulkan_queue_family_indices& vulkan_device::get_queue_family_indices() const noexcept {
+        return m_queue_family_indices;
     }
 
     vulkan_surface::~vulkan_surface() {
@@ -576,28 +587,57 @@ namespace bbge {
         return m_surface;
     }
 
-    vulkan_swap_chain::vulkan_swap_chain(VkInstance instance, VkPhysicalDevice physical_device, VkDevice device, VkSurfaceKHR surface, const glfw_window& window) {
-        // TODO: implement
-
-        auto format = pick_surface_format(physical_device, surface);
-        auto present_mode = pick_present_mode(physical_device, surface);
-        auto extent = pick_swap_extent(physical_device, surface, window.get_handle());
+    vulkan_swap_chain::vulkan_swap_chain(
+        VkInstance instance,
+        VkPhysicalDevice physical_device, VkDevice device,
+        VkSurfaceKHR surface, const glfw_window& window,
+        const vulkan_queue_family_indices& q_fam_indices)
+      : m_device(device), m_handle(VK_NULL_HANDLE) {
 
         auto capabilities = vulkan_utils::query_surface_capabilities(physical_device, surface).or_throw();
 
-        auto image_count = std::min(capabilities.minImageCount + 1, capabilities.maxImageCount);
-
         VkSwapchainCreateInfoKHR create_info { };
         create_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+        create_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        create_info.imageArrayLayers = 1;
+        create_info.surface = surface;
+        create_info.preTransform = capabilities.currentTransform;
+        create_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR; // disable window transparency
+        create_info.clipped = VK_TRUE;
+        create_info.oldSwapchain = VK_NULL_HANDLE;
+
+        // image count
+        auto image_count = std::min(capabilities.minImageCount + 1, capabilities.maxImageCount);
+        create_info.minImageCount = image_count;
+
+        // present mode
+        auto present_mode = pick_present_mode(physical_device, surface);
+        create_info.presentMode = present_mode;
+
+        // surface format
+        auto format = pick_surface_format(physical_device, surface);
         create_info.imageFormat = format.format;
         create_info.imageColorSpace = format.colorSpace;
-        create_info.presentMode = present_mode;
-        create_info.imageExtent = extent;
-        create_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-        create_info.minImageCount = image_count;
-        create_info.imageArrayLayers = 1;
 
-        // TODO: finish
+        // extent (surface size)
+        auto extent = pick_swap_extent(physical_device, surface, window.get_handle());
+        create_info.imageExtent = extent;
+
+        // queue settings
+        auto q_settings = pick_queue_settings(q_fam_indices);
+        create_info.imageSharingMode        = q_settings.image_sharing_mode;
+        create_info.queueFamilyIndexCount   = q_settings.queue_family_indices.size();
+        create_info.pQueueFamilyIndices     = q_settings.queue_family_indices.empty() ? nullptr : q_settings.queue_family_indices.data();
+
+        // create the swap chain
+        auto res = vkCreateSwapchainKHR(device, &create_info, nullptr, &m_handle);
+        if (res != VkResult::VK_SUCCESS) {
+            throw vulkan_error("Failed to create swap chain", res);
+        }
+
+        SPDLOG_TRACE("Created Vulkan swap chain.");
+
+        m_images = std::move(vulkan_utils::query_swapchain_images(m_device, m_handle).or_throw());
     }
 
     VkSurfaceFormatKHR vulkan_swap_chain::pick_surface_format(VkPhysicalDevice device, VkSurfaceKHR surface) {
@@ -652,5 +692,39 @@ namespace bbge {
         ext.x = std::clamp(ext.x, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
         ext.y = std::clamp(ext.y, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
         return { ext.x, ext.y };
+    }
+
+    vulkan_swap_chain::~vulkan_swap_chain() {
+        if (m_handle) {
+            vkDestroySwapchainKHR(m_device, m_handle, nullptr);
+            SPDLOG_TRACE("Destroyed Vulkan swap chain.");
+        }
+    }
+
+    vulkan_swap_chain::queue_settings
+    vulkan_swap_chain::pick_queue_settings(const vulkan_queue_family_indices& q_fam_indices) {
+        std::set<uint32_t> indices = { q_fam_indices.presentation, q_fam_indices.graphics };
+
+        // if two queue families share the same physical queue we need to enable synchronization
+        if (indices.size() < 2) {
+            return queue_settings {
+                VK_SHARING_MODE_CONCURRENT,
+                { indices.begin(), indices.end() }
+            };
+        }
+
+        // otherwise it's simpler and faster to disable synchronization
+        return {
+            VK_SHARING_MODE_EXCLUSIVE,
+            { } // optional parameter can be left empty
+        };
+    }
+
+    VkSwapchainKHR vulkan_swap_chain::get_handle() const noexcept {
+        return m_handle;
+    }
+
+    const std::vector<VkImage>& vulkan_swap_chain::get_images() const noexcept {
+        return m_images;
     }
 }

@@ -133,6 +133,15 @@ namespace bbge {
         VkDebugUtilsMessengerEXT m_handle;
     };
 
+    /**
+     * Simple struct to contains all the relevant queue family indices of a device.
+     * The absence of a queue family is indicated by a value of UINT32_MAX.
+     */
+    struct vulkan_queue_family_indices {
+        uint32_t graphics = std::numeric_limits<uint32_t>::max(); // the high value makes API calls fail if not assigned
+        uint32_t presentation = std::numeric_limits<uint32_t>::max();
+    };
+
     class vulkan_device {
     public:
 
@@ -196,12 +205,19 @@ namespace bbge {
          */
         [[nodiscard]] const queue_handles& get_queues() const noexcept;
 
-    private:
+        /**
+         * Get the physical device behind this device.
+         * @return Physical device handle
+         */
+        [[nodiscard]] VkPhysicalDevice get_physical_device() const noexcept;
 
-        struct queue_family_indices {
-            uint32_t graphics = std::numeric_limits<uint32_t>::max(); // the high value makes API calls fail if not assigned
-            uint32_t presentation = std::numeric_limits<uint32_t>::max();
-        };
+        /**
+         * Get the queue family indices of this device.
+         * @return Queue family indices struct
+         */
+        [[nodiscard]] const vulkan_queue_family_indices& get_queue_family_indices() const noexcept;
+
+    private:
 
         static constexpr const char* validation_layers[] = {
             "VK_LAYER_KHRONOS_validation",
@@ -221,13 +237,14 @@ namespace bbge {
         VkInstance m_instance;
         VkSurfaceKHR m_surface;
         VkPhysicalDevice m_physical_device;
+        vulkan_queue_family_indices m_queue_family_indices;
         VkDevice m_device;
         queue_handles m_queue_handles;
 
-        [[nodiscard]] std::pair<VkDevice, queue_family_indices> create_device() const;
-        [[nodiscard]] queue_family_indices get_required_queue_family_indices() const;
+        [[nodiscard]] std::pair<VkDevice, vulkan_queue_family_indices> create_device() const;
+        [[nodiscard]] vulkan_queue_family_indices get_required_queue_family_indices() const;
         [[nodiscard]] std::vector<const char*> get_extensions() const;
-        [[nodiscard]] queue_handles get_queue_handles(const queue_family_indices& indices) const;
+        [[nodiscard]] queue_handles get_queue_handles(const vulkan_queue_family_indices& indices) const;
 
         // logging
         void log_available_physical_devices() const;
@@ -262,13 +279,41 @@ namespace bbge {
     class vulkan_swap_chain {
     public:
 
-        vulkan_swap_chain(VkInstance instance, VkPhysicalDevice physical_device, VkDevice device, VkSurfaceKHR surface, const glfw_window& window);
+        vulkan_swap_chain(
+            VkInstance instance,
+            VkPhysicalDevice physical_device, VkDevice device,
+            VkSurfaceKHR surface, const glfw_window& window,
+            const vulkan_queue_family_indices& q_fam_indices);
+
+        ~vulkan_swap_chain();
+
+        /**
+         * Get the swap chain handle
+         * @return Swap chain handle
+         */
+        [[nodiscard]] VkSwapchainKHR get_handle() const noexcept;
+
+        /**
+         * Get the images of the current swap chain
+         * @return List of images on this swap chain
+         */
+        [[nodiscard]] const std::vector<VkImage>& get_images() const noexcept;
 
     private:
+
+        VkDevice m_device;
+        VkSwapchainKHR m_handle;
+        std::vector<VkImage> m_images;
+
+        struct queue_settings {
+            VkSharingMode image_sharing_mode;
+            std::vector<uint32_t> queue_family_indices;
+        };
 
         [[nodiscard]] static VkSurfaceFormatKHR pick_surface_format(VkPhysicalDevice dev, VkSurfaceKHR surface);
         [[nodiscard]] static VkPresentModeKHR pick_present_mode(VkPhysicalDevice device, VkSurfaceKHR surface);
         [[nodiscard]] static VkExtent2D pick_swap_extent(VkPhysicalDevice device, VkSurfaceKHR surface, GLFWwindow* win);
+        [[nodiscard]] static queue_settings pick_queue_settings(const vulkan_queue_family_indices& q_fam_indices);
     };
 }
 
