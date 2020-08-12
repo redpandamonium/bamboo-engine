@@ -19,6 +19,7 @@
 
 #include <fstream>
 #include "vulkan_pipeline.hpp"
+#include "../util/custom_formatters.hpp"
 
 namespace bbge {
 
