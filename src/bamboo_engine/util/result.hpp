@@ -15,13 +15,11 @@ namespace bbge {
     /**
      * @brief Result class sort of inspired by Rust
      * @tparam Result If successful this type is held
-     * @tparam Error If unsuccessful this type is held
+     * @tparam Error If unsuccessful this type is held. Expected to be implement a std::exception like what() function.
      */
     template <typename Result, typename Error>
     class result {
     public:
-
-        // Possible cases when is_err(): throw, handle, ignore, alternative value
 
         using ok_type = Result;
         using err_type = Error;
