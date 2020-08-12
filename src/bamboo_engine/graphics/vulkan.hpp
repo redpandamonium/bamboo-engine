@@ -255,6 +255,8 @@ namespace bbge {
     class vulkan_surface {
     public:
 
+        BBGE_NO_COPIES(vulkan_surface);
+
         /**
          * Create a new vulkan surface for a GLFW window.
          * @param instance Vulkan instance
@@ -278,6 +280,8 @@ namespace bbge {
 
     class vulkan_swap_chain {
     public:
+
+        BBGE_NO_COPIES(vulkan_swap_chain);
 
         vulkan_swap_chain(
             VkPhysicalDevice physical_device, VkDevice device,

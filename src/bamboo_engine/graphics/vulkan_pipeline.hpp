@@ -43,6 +43,8 @@ namespace bbge {
     class vulkan_pipeline {
     public:
 
+        BBGE_NO_COPIES(vulkan_pipeline);
+
         struct shader_module_paths {
             std::filesystem::path vertex_shader;
             std::filesystem::path fragment_shader;
