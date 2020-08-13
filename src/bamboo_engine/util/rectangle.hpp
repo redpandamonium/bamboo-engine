@@ -53,8 +53,8 @@ namespace bbge {
         static constexpr const auto max_depth = 1.0f;
 
         return VkViewport {
-            r.x, r.y,
-            r.width, r.height,
+            static_cast<float>(r.x), static_cast<float>(r.y),
+            static_cast<float>(r.width), static_cast<float>(r.height),
             min_depth, max_depth
         };
     }
