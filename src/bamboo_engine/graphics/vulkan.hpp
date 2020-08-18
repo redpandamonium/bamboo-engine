@@ -302,6 +302,12 @@ namespace bbge {
          */
         [[nodiscard]] const std::vector<VkImage>& get_images() const noexcept;
 
+        /**
+         * Get the image format of the swap chain. This value might change on recreation, so query it often enough.
+         * @return The current format of the swap chain
+         */
+        [[nodiscard]] VkFormat get_format() const noexcept;
+
     private:
 
         VkDevice m_device;

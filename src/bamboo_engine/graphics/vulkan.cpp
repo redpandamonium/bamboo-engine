@@ -762,4 +762,8 @@ namespace bbge {
 
         return views;
     }
+
+    VkFormat vulkan_swap_chain::get_format() const noexcept {
+        return m_format.format;
+    }
 }
