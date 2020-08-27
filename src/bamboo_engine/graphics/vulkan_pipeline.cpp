@@ -103,8 +103,12 @@ namespace bbge {
 
     result<std::vector<std::byte>, std::runtime_error> vulkan_pipeline::load_binary_file(const std::filesystem::path& p) {
 
+        if (!std::filesystem::exists(p)) {
+            return std::runtime_error(fmt::format("File '{}' doesn't exist.", p.string()));
+        }
+
         std::ifstream is(p, std::ifstream::in | std::ifstream::binary);
-        if (is.bad()) {
+        if (!is) {
             return std::runtime_error(fmt::format("Failed to read file '{}': {}.", p, std::strerror(errno)));
         }
         is.seekg(std::ifstream::end);
