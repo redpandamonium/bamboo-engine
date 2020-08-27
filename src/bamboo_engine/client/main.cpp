@@ -23,6 +23,7 @@
 #include <bamboo_engine/client/window.hpp>
 #include <bamboo_engine/util/logging.hpp>
 #include <bamboo_engine/graphics/vulkan.hpp>
+#include <bamboo_engine/graphics/vulkan_pipeline.hpp>
 #include "glfw.hpp"
 
 void print_gpl_notice() {
@@ -61,6 +62,18 @@ int main(int argc, char** argv) {
             vk_surface.get_handle(), dynamic_cast<glfw_window&>(*win),
             vk_device.get_queue_family_indices()
         );
+
+        // pipeline
+        vulkan_pipeline::shader_module_paths paths { };
+        paths.vertex_shader = "shader/simple.vert.spv";
+        paths.fragment_shader = "shader/simple.frag.spv";
+        rendering_pipeline_settings pipeline_settings { };
+        pipeline_settings.viewport = {
+            0, 0,
+            static_cast<double>(vk_swapchain.get_extent().width),
+            static_cast<double>(vk_swapchain.get_extent().height)
+        };
+        vulkan_pipeline vk_pipeline("Main"s, paths, pipeline_settings, vk_device.get_handle(), vk_swapchain);
 
         std::this_thread::sleep_for(std::chrono::seconds(5));
     }
