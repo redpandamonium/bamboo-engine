@@ -107,13 +107,12 @@ namespace bbge {
             return std::runtime_error(fmt::format("File '{}' doesn't exist.", p.string()));
         }
 
-        std::ifstream is(p, std::ifstream::in | std::ifstream::binary);
+        std::fstream is(p, std::ios_base::in | std::ios_base::binary | std::ios_base::ate);
         if (!is) {
             return std::runtime_error(fmt::format("Failed to read file '{}': {}.", p, std::strerror(errno)));
         }
-        is.seekg(std::ifstream::end);
         auto length = is.tellg();
-        is.seekg(std::ifstream::beg);
+        is.seekg(std::ios_base::beg);
         std::vector<std::byte> result(length);
         is.read(reinterpret_cast<char*>(result.data()), length);
         result.resize(is.gcount()); // if only part of the file was read we truncate the buffer
@@ -164,7 +163,7 @@ namespace bbge {
         create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
         create_info.stage = to_vulkan(type);
         create_info.module = module;
-        create_info.pName = m_name.c_str();
+        create_info.pName = "main"; // entrypoint
         return create_info;
     }
 
@@ -379,6 +378,7 @@ namespace bbge {
         create_info.layout = m_layout;
         create_info.renderPass = m_render_pass;
         create_info.subpass = 0;
+        create_info.pInputAssemblyState = &input_assembly;
 
         create_info.basePipelineHandle = VK_NULL_HANDLE;
         create_info.basePipelineIndex = -1;
