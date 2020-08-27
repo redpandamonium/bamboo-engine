@@ -49,8 +49,8 @@ namespace bbge {
         float slope_factor;
     };
 
-    enum shader_type {
-        fragment, vertex, geometry, compute, enum_size
+    enum class shader_type : uint8_t {
+        fragment, vertex, geometry, compute
     };
 
     struct rendering_pipeline_settings {
@@ -97,7 +97,7 @@ namespace bbge {
             std::string&& name,
             const shader_module_paths& module_paths,
             const rendering_pipeline_settings& settings,
-            VkDevice dev
+            VkDevice dev, const vulkan_swap_chain& swap_chain
         );
 
         ~vulkan_pipeline();
@@ -106,11 +106,17 @@ namespace bbge {
 
         std::string m_name;
         VkDevice m_device;
+        const vulkan_swap_chain& m_swap_chain;
         VkPipelineLayout m_layout;
+        VkRenderPass m_render_pass;
+        VkPipeline m_pipeline;
 
         [[nodiscard]] static result<std::vector<std::byte>, std::runtime_error> load_binary_file(const std::filesystem::path& p);
         [[nodiscard]] result<VkShaderModule, vulkan_error> create_shader_module(VkDevice dev, const std::vector<std::byte>& spir_v_bytecode, shader_type type) const;
         [[nodiscard]] VkPipelineShaderStageCreateInfo make_shader_stage_create_info(VkShaderModule module, shader_type type) const;
+        [[nodiscard]] result<VkPipelineLayout, vulkan_error> create_pipeline_layout() const;
+        [[nodiscard]] result<VkRenderPass, vulkan_error> create_simple_render_pass() const;
+        [[nodiscard]] result<VkPipeline, vulkan_error> create_pipeline(const shader_module_paths& module_paths, const rendering_pipeline_settings& settings) const;
     };
 }
 

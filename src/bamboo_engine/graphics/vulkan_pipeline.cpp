@@ -23,13 +23,13 @@
 
 namespace bbge {
 
-    constexpr std::array<std::string_view, shader_type::enum_size + 1> shader_type_names {
-        "fragment", "vertex", "geometry", "compute", "INVALID_SHADER_TYPE"
+    constexpr std::array<std::string_view, 4> shader_type_names {
+        "fragment", "vertex", "geometry", "compute"
     };
 
     std::string_view to_string(shader_type t) {
-        if (t >= shader_type::enum_size) return shader_type_names[shader_type::enum_size];
-        return shader_type_names[t];
+        auto v = static_cast<uint8_t>(t);
+        return shader_type_names[v];
     }
 
     constexpr std::array<std::string_view, 3> rasterizer_mode_names {
@@ -59,15 +59,13 @@ namespace bbge {
         return rasterizer_front_face_names[v];
     }
 
-    constexpr std::array<VkShaderStageFlagBits, shader_type::enum_size + 1> shader_type_vk_conversion {
+    constexpr std::array<VkShaderStageFlagBits, 4> shader_type_vk_conversion {
         VK_SHADER_STAGE_FRAGMENT_BIT, VK_SHADER_STAGE_VERTEX_BIT, VK_SHADER_STAGE_GEOMETRY_BIT, VK_SHADER_STAGE_COMPUTE_BIT
     };
 
     VkShaderStageFlagBits to_vulkan(shader_type t) {
-        if (t >= shader_type::enum_size) {
-            throw std::logic_error("Vulkan does not support the requested shader type.");
-        }
-        return shader_type_vk_conversion[t];
+        auto v = static_cast<uint8_t>(t);
+        return shader_type_vk_conversion[v];
     }
 
     constexpr std::array<VkPolygonMode, 3> polygon_mode_vk_conversion {
@@ -140,15 +138,112 @@ namespace bbge {
     vulkan_pipeline::vulkan_pipeline(
         std::string&& name, const vulkan_pipeline::shader_module_paths& module_paths,
         const rendering_pipeline_settings& settings,
-        VkDevice dev)
-      : m_name(std::move(name)), m_device(dev), m_layout(VK_NULL_HANDLE) {
+        VkDevice dev, const vulkan_swap_chain& swap_chain)
+      : m_name(std::move(name)), m_device(dev), m_swap_chain(swap_chain),
+        m_layout(VK_NULL_HANDLE), m_render_pass(VK_NULL_HANDLE) {
 
-        assert(dev);
+        // pipeline layout, for uniform variables
+        m_layout = create_pipeline_layout().or_throw();
 
+        // render passes
+        m_render_pass = create_simple_render_pass().or_throw();
+
+        // pipeline
+        m_pipeline = create_pipeline(module_paths, settings).or_throw();
+
+        SPDLOG_TRACE("Created vulkan pipeline.");
+    }
+
+    VkPipelineShaderStageCreateInfo
+    vulkan_pipeline::make_shader_stage_create_info(VkShaderModule module, shader_type type) const {
+        VkPipelineShaderStageCreateInfo create_info { };
+        create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        create_info.stage = to_vulkan(type);
+        create_info.module = module;
+        create_info.pName = m_name.c_str();
+        return create_info;
+    }
+
+    vulkan_pipeline::~vulkan_pipeline() {
+        if (m_pipeline) {
+            vkDestroyPipeline(m_device, m_pipeline, nullptr);
+        }
+        if (m_layout) {
+            vkDestroyPipelineLayout(m_device, m_layout, nullptr);
+        }
+        if (m_render_pass) {
+            vkDestroyRenderPass(m_device, m_render_pass, nullptr);
+        }
+        SPDLOG_TRACE("Destroyed vulkan pipeline.");
+    }
+
+    result<VkRenderPass, vulkan_error> vulkan_pipeline::create_simple_render_pass() const {
+
+        VkAttachmentDescription color_attachment { };
+        color_attachment.format = m_swap_chain.get_format();
+        color_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+        color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        color_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        color_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+        VkAttachmentReference color_attachment_ref { };
+        color_attachment_ref.attachment = 0;
+        color_attachment_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+        VkSubpassDescription single_subpass { };
+        single_subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        single_subpass.colorAttachmentCount = 1;
+        single_subpass.pColorAttachments = &color_attachment_ref;
+
+        VkRenderPassCreateInfo render_pass_create_info { };
+        render_pass_create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+        render_pass_create_info.attachmentCount = 1;
+        render_pass_create_info.pAttachments = &color_attachment;
+        render_pass_create_info.subpassCount = 1;
+        render_pass_create_info.pSubpasses = &single_subpass;
+
+        VkRenderPass pass;
+        auto res = vkCreateRenderPass(m_device, &render_pass_create_info, nullptr, &pass);
+        if (res != VK_SUCCESS) {
+            return vulkan_error("Failed to create render pass", res);
+        }
+
+        return pass;
+    }
+
+    result<VkPipelineLayout, vulkan_error> vulkan_pipeline::create_pipeline_layout() const {
+
+        assert(m_device);
+
+        VkPipelineLayoutCreateInfo pipeline_layout_create_info { };
+        pipeline_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+
+        VkPipelineLayout layout;
+        auto res = vkCreatePipelineLayout(m_device, &pipeline_layout_create_info, nullptr, &layout);
+        if (res != VkResult::VK_SUCCESS) {
+            return vulkan_error("Failed to create Vulkan pipeline layout", res);
+        }
+
+        return layout;
+    }
+
+    result<VkPipeline, vulkan_error>
+    vulkan_pipeline::create_pipeline(
+        const shader_module_paths& module_paths,
+        const rendering_pipeline_settings& settings
+    ) const {
+
+        // preconditions
+        assert(m_device);
+        assert(m_layout);
+        assert(m_render_pass);
+
+        // shader modules
         auto frag_code = load_binary_file(module_paths.fragment_shader).or_throw();
         auto vert_code = load_binary_file(module_paths.vertex_shader).or_throw();
 
-        // make sure this code doesn't leak API resources on throwing
+        // RAII wrapper to ensure cleanup
         struct module_wrapper {
             VkDevice device;
             VkShaderModule module;
@@ -157,8 +252,8 @@ namespace bbge {
             }
         };
 
-        auto frag_module = module_wrapper { dev, create_shader_module(dev, frag_code, shader_type::fragment).or_throw() };
-        auto vert_module = module_wrapper { dev, create_shader_module(dev, vert_code, shader_type::vertex).or_throw() };
+        auto frag_module = module_wrapper { m_device, create_shader_module(m_device, frag_code, shader_type::fragment).or_throw() };
+        auto vert_module = module_wrapper { m_device, create_shader_module(m_device, vert_code, shader_type::vertex).or_throw() };
 
         std::array shader_stage_creation_infos = {
             make_shader_stage_create_info(vert_module.module, shader_type::vertex),
@@ -250,33 +345,34 @@ namespace bbge {
         color_blending.blendConstants[2] = 0.0f;
         color_blending.blendConstants[3] = 0.0f;
 
-        // depth and stencil testing setup here
+        // < depth and stencil testing setup here
 
-        // pipeline layout, for uniform variables
-        VkPipelineLayoutCreateInfo pipeline_layout_create_info { };
-        pipeline_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        // put it all together
+        VkGraphicsPipelineCreateInfo create_info { };
+        create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+        create_info.stageCount = shader_stage_creation_infos.size();
+        create_info.pStages = shader_stage_creation_infos.data();
+        create_info.pVertexInputState = &vertex_input_info;
+        create_info.pViewportState = &viewport_create_info;
+        create_info.pRasterizationState = &rasterizer_create_info;
+        create_info.pMultisampleState = &multisampling;
+        create_info.pDepthStencilState = nullptr;
+        create_info.pColorBlendState = &color_blending;
+        create_info.pDynamicState = nullptr;
+        create_info.layout = m_layout;
+        create_info.renderPass = m_render_pass;
+        create_info.subpass = 0;
 
-        auto res = vkCreatePipelineLayout(dev, &pipeline_layout_create_info, nullptr, &m_layout);
-        if (res != VkResult::VK_SUCCESS) {
-            throw vulkan_error("Failed to create Vulkan pipeline layout", res);
+        create_info.basePipelineHandle = VK_NULL_HANDLE;
+        create_info.basePipelineIndex = -1;
+
+        // create
+        VkPipeline pipeline;
+        auto res = vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &create_info, nullptr, &pipeline);
+        if (res != VK_SUCCESS) {
+            return vulkan_error("Failed to create graphics pipeline", res);
         }
 
-        // TODO: render passes.
-    }
-
-    VkPipelineShaderStageCreateInfo
-    vulkan_pipeline::make_shader_stage_create_info(VkShaderModule module, shader_type type) const {
-        VkPipelineShaderStageCreateInfo create_info { };
-        create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        create_info.stage = to_vulkan(type);
-        create_info.module = module;
-        create_info.pName = m_name.c_str();
-        return create_info;
-    }
-
-    vulkan_pipeline::~vulkan_pipeline() {
-        if (m_layout) {
-            vkDestroyPipelineLayout(m_device, m_layout, nullptr);
-        }
+        return pipeline;
     }
 }
