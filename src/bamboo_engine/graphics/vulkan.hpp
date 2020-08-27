@@ -308,10 +308,17 @@ namespace bbge {
          */
         [[nodiscard]] VkFormat get_format() const noexcept;
 
+        /**
+         * Get the current extent of this swap chain.
+         * @return Extent. Should match the window size.
+         */
+        [[nodiscard]] const VkExtent2D& get_extent() const;
+
     private:
 
         VkDevice m_device;
         VkSurfaceFormatKHR m_format;
+        VkExtent2D m_extent;
         VkSwapchainKHR m_handle;
         std::vector<VkImage> m_images;
         std::vector<VkImageView> m_image_views;

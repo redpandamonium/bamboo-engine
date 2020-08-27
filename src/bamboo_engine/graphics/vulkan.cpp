@@ -619,8 +619,8 @@ namespace bbge {
         create_info.imageColorSpace = m_format.colorSpace;
 
         // extent (surface size)
-        auto extent = pick_swap_extent(physical_device, surface, window.get_handle());
-        create_info.imageExtent = extent;
+        m_extent = pick_swap_extent(physical_device, surface, window.get_handle());
+        create_info.imageExtent = m_extent;
 
         // queue settings
         auto q_settings = pick_queue_settings(q_fam_indices);
@@ -765,5 +765,9 @@ namespace bbge {
 
     VkFormat vulkan_swap_chain::get_format() const noexcept {
         return m_format.format;
+    }
+
+    const VkExtent2D& vulkan_swap_chain::get_extent() const {
+        return m_extent;
     }
 }
