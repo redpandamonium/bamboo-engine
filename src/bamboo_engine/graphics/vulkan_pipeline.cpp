@@ -244,8 +244,21 @@ namespace bbge {
         assert(m_render_pass);
 
         // shader modules
-        auto frag_code = load_binary_file(module_paths.fragment_shader).or_throw();
-        auto vert_code = load_binary_file(module_paths.vertex_shader).or_throw();
+        auto frag_code = load_binary_file(module_paths.fragment_shader);
+        auto vert_code = load_binary_file(module_paths.vertex_shader);
+
+        if (!frag_code) {
+            return vulkan_error(
+                fmt::format("Failed to load shader module code: {}", frag_code.err()->what()),
+                VK_ERROR_UNKNOWN
+            );
+        }
+        if (!vert_code) {
+            return vulkan_error(
+                fmt::format("Failed to load shader module code: {}", vert_code.err()->what()),
+                VK_ERROR_UNKNOWN
+            );
+        }
 
         // RAII wrapper to ensure cleanup
         struct module_wrapper {
@@ -256,8 +269,8 @@ namespace bbge {
             }
         };
 
-        auto frag_module = module_wrapper { m_device, create_shader_module(m_device, frag_code, shader_type::fragment).or_throw() };
-        auto vert_module = module_wrapper { m_device, create_shader_module(m_device, vert_code, shader_type::vertex).or_throw() };
+        auto frag_module = module_wrapper { m_device, create_shader_module(m_device, *frag_code.ok(), shader_type::fragment).or_throw() };
+        auto vert_module = module_wrapper { m_device, create_shader_module(m_device, *vert_code.ok(), shader_type::vertex).or_throw() };
 
         std::array shader_stage_creation_infos = {
             make_shader_stage_create_info(vert_module.module, shader_type::vertex),
